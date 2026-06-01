@@ -1,0 +1,40 @@
+# ── Binaries ──────────────────────────────────────────────
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ── Go build cache ────────────────────────────────────────
+*.test
+*.out
+coverage.out
+coverage.html
+tmp/
+
+# ── Sensitive / environment ───────────────────────────────
+.env
+*.pem
+*.key
+*.crt
+secrets/
+
+# ── Logs & data ───────────────────────────────────────────
+logs/
+*.log
+data/
+
+# ── IDE / OS ──────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Docker volumes (local) ────────────────────────────────
+deployments/docker/.volumes/
+
+# ── Go vendor (optional, uncomment if not committing vendor/) ──
+# vendor/

@@ -1,0 +1,584 @@
+# 来源: https://kubernetes.io/docs/reference/
+# 版本基线: Kubernetes 1.31
+knowledge_items:
+
+  - title: "kubectl 常用命令速查"
+    type: kubernetes
+    tags: ["kubectl", "get", "describe", "apply", "delete", "logs"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/reference/kubectl/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # kubectl 常用命令（来自官方kubectl参考）
+
+      ## 资源查看
+      kubectl get pods                              # 当前命名空间Pod
+      kubectl get pods -A                           # 所有命名空间
+      kubectl get pods -n kube-system              # 指定命名空间
+      kubectl get pods -o wide                     # 含节点、IP信息
+      kubectl get pods -o yaml                     # YAML格式输出
+      kubectl get pods -o json | jq '.items[].metadata.name'
+      kubectl get pods --field-selector=status.phase=Running
+      kubectl get pods -l app=nginx,env=prod       # 标签选择器
+      kubectl get all -n myapp                     # 所有资源类型
+      kubectl get events --sort-by=.metadata.creationTimestamp
+      kubectl get events -n myapp --field-selector reason=BackOff
+
+      ## 资源详情
+      kubectl describe pod <pod-name>
+      kubectl describe node <node-name>
+      kubectl describe deployment <deploy-name>
+
+      ## 日志
+      kubectl logs <pod-name>                      # 当前日志
+      kubectl logs <pod-name> -f                   # 跟踪实时日志
+      kubectl logs <pod-name> --tail=100           # 最近100行
+      kubectl logs <pod-name> -c <container>       # 多容器Pod指定容器
+      kubectl logs <pod-name> --previous           # 上一个容器实例日志（崩溃后用）
+      kubectl logs -l app=nginx --all-containers   # 标签批量查日志
+
+      ## 执行命令
+      kubectl exec -it <pod-name> -- bash
+      kubectl exec -it <pod-name> -c <container> -- sh
+      kubectl exec <pod-name> -- env               # 查看环境变量
+      kubectl exec <pod-name> -- curl localhost:8080/health
+
+      ## 端口转发（调试用）
+      kubectl port-forward pod/<pod-name> 8080:80
+      kubectl port-forward svc/<svc-name> 8080:80
+      kubectl port-forward deploy/<deploy-name> 8080:80
+
+      ## 资源应用与删除
+      kubectl apply -f manifest.yaml
+      kubectl apply -f ./k8s/                      # 目录下所有YAML
+      kubectl apply -f https://url/manifest.yaml
+      kubectl delete -f manifest.yaml
+      kubectl delete pod <pod-name> --grace-period=0 --force  # 强删（慎用）
+
+      ## 滚动更新与回滚
+      kubectl set image deployment/nginx nginx=nginx:1.27
+      kubectl rollout status deployment/nginx
+      kubectl rollout history deployment/nginx
+      kubectl rollout undo deployment/nginx
+      kubectl rollout undo deployment/nginx --to-revision=2
+      kubectl rollout pause deployment/nginx       # 暂停滚动更新
+      kubectl rollout resume deployment/nginx
+
+      ## 扩缩容
+      kubectl scale deployment nginx --replicas=5
+      kubectl autoscale deployment nginx --min=2 --max=10 --cpu-percent=70
+
+      ## 标签与注解
+      kubectl label pod <pod-name> env=prod
+      kubectl label node <node-name> disk=ssd
+      kubectl annotate pod <pod-name> description="my pod"
+
+      ## 节点管理
+      kubectl cordon <node-name>                   # 标记不可调度
+      kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
+      kubectl uncordon <node-name>                 # 恢复调度
+      kubectl taint nodes <node-name> key=value:NoSchedule
+      kubectl taint nodes <node-name> key:NoSchedule-   # 删除taint
+
+      ## 资源用量
+      kubectl top nodes
+      kubectl top pods -A
+      kubectl top pods -n myapp --sort-by=memory
+
+      ## 调试
+      kubectl run debug --image=nicolaka/netshoot --rm -it -- bash  # 网络调试
+      kubectl debug <pod-name> -it --image=busybox --copy-to=debug-pod
+      kubectl debug node/<node-name> -it --image=ubuntu             # 1.23+
+
+  - title: "Deployment YAML模板（生产级）"
+    type: kubernetes
+    tags: ["deployment", "yaml", "production", "hpa", "probe"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # 生产级 Deployment YAML
+
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: myapp
+        namespace: production
+        labels:
+          app: myapp
+          version: "1.0.0"
+          managed-by: kubectl
+        annotations:
+          deployment.kubernetes.io/revision: "1"
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: myapp
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1          # 滚动更新最多超出期望副本数
+            maxUnavailable: 0    # 滚动更新最多不可用副本数（0=无损更新）
+        minReadySeconds: 10      # Pod就绪后等待10s再认为可用
+        template:
+          metadata:
+            labels:
+              app: myapp
+              version: "1.0.0"
+            annotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "9090"
+          spec:
+            # 反亲和性：Pod分散到不同节点
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchExpressions:
+                          - key: app
+                            operator: In
+                            values: [myapp]
+                      topologyKey: kubernetes.io/hostname
+            # 容忍节点污点（可选）
+            tolerations:
+              - key: "dedicated"
+                operator: "Equal"
+                value: "myapp"
+                effect: "NoSchedule"
+            # 服务账号（最小权限）
+            serviceAccountName: myapp-sa
+            # 安全上下文（Pod级别）
+            securityContext:
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+            # 优雅退出期
+            terminationGracePeriodSeconds: 30
+            containers:
+              - name: myapp
+                image: registry.example.com/myapp:1.0.0
+                imagePullPolicy: IfNotPresent
+                ports:
+                  - name: http
+                    containerPort: 8080
+                    protocol: TCP
+                  - name: metrics
+                    containerPort: 9090
+                # 环境变量
+                env:
+                  - name: POD_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.name
+                  - name: POD_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: DB_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: myapp-secret
+                        key: db-password
+                envFrom:
+                  - configMapRef:
+                      name: myapp-config
+                # 资源限制（生产必须设置）
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "512Mi"
+                    cpu: "500m"
+                # 存活探针：失败则重启容器
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+                # 就绪探针：失败则从Service摘流
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+                # 启动探针：慢启动应用（K8s 1.20+ GA）
+                startupProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  failureThreshold: 30
+                  periodSeconds: 10
+                # 容器安全上下文
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  runAsUser: 1001
+                  runAsGroup: 1001
+                  capabilities:
+                    drop: [ALL]
+                # 卷挂载
+                volumeMounts:
+                  - name: tmp
+                    mountPath: /tmp
+                  - name: config
+                    mountPath: /app/configs
+                    readOnly: true
+            volumes:
+              - name: tmp
+                emptyDir: {}
+              - name: config
+                configMap:
+                  name: myapp-config
+            # 镜像拉取Secret
+            imagePullSecrets:
+              - name: registry-secret
+
+  - title: "Service 四种类型"
+    type: kubernetes
+    tags: ["service", "clusterip", "nodeport", "loadbalancer", "headless"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/concepts/services-networking/service/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # Service 类型详解
+
+      ## 1. ClusterIP（默认，集群内访问）
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: myapp-svc
+        namespace: production
+      spec:
+        type: ClusterIP       # 默认值
+        selector:
+          app: myapp
+        ports:
+          - name: http
+            protocol: TCP
+            port: 80          # Service端口
+            targetPort: 8080  # 容器端口（或portName）
+          - name: metrics
+            protocol: TCP
+            port: 9090
+            targetPort: 9090
+        sessionAffinity: None  # None 或 ClientIP
+
+      ## 2. NodePort（暴露到节点端口，范围30000-32767）
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: myapp-nodeport
+      spec:
+        type: NodePort
+        selector:
+          app: myapp
+        ports:
+          - port: 80
+            targetPort: 8080
+            nodePort: 30080   # 不指定则随机分配
+
+      ## 3. LoadBalancer（云厂商LB，生产推荐配合Ingress）
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: myapp-lb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      spec:
+        type: LoadBalancer
+        selector:
+          app: myapp
+        ports:
+          - port: 443
+            targetPort: 8080
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8      # 限制来源IP
+
+      ## 4. Headless Service（StatefulSet必用，DNS直接解析到Pod IP）
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: mysql-headless
+      spec:
+        clusterIP: None       # Headless关键字段
+        selector:
+          app: mysql
+        ports:
+          - port: 3306
+            targetPort: 3306
+      # DNS格式: <pod-name>.<svc-name>.<namespace>.svc.cluster.local
+
+  - title: "ConfigMap 和 Secret"
+    type: kubernetes
+    tags: ["configmap", "secret", "env", "volume"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/concepts/configuration/configmap/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # ConfigMap 和 Secret
+
+      ## ConfigMap — 非敏感配置
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: myapp-config
+        namespace: production
+      data:
+        # 键值对
+        DATABASE_HOST: "mysql-svc.production.svc.cluster.local"
+        DATABASE_PORT: "3306"
+        LOG_LEVEL: "info"
+        # 文件内容
+        nginx.conf: |
+          server {
+            listen 80;
+            location /health { return 200 "ok"; }
+          }
+
+      ## Secret — 敏感信息（base64编码存储，建议搭配Vault/SealedSecrets）
+      # 命令行创建（推荐，避免明文写YAML）
+      kubectl create secret generic myapp-secret \
+        --from-literal=db-password='S3cr3t!' \
+        --from-literal=api-key='abc123' \
+        --from-file=tls.crt=./server.crt \
+        --from-file=tls.key=./server.key \
+        -n production
+
+      # TLS Secret
+      kubectl create secret tls myapp-tls \
+        --cert=path/to/cert.pem \
+        --key=path/to/key.pem
+
+      # 在Pod中使用：环境变量方式
+      env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: myapp-secret
+              key: db-password
+
+      # 在Pod中使用：卷挂载方式（推荐，文件权限更安全）
+      volumes:
+        - name: secret-vol
+          secret:
+            secretName: myapp-secret
+            defaultMode: 0400   # 只有owner可读
+
+  - title: "RBAC 权限管理"
+    type: kubernetes
+    tags: ["rbac", "role", "clusterrole", "serviceaccount"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # RBAC 最小权限配置
+
+      ## ServiceAccount（应用身份）
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: myapp-sa
+        namespace: production
+      automountServiceAccountToken: false  # 不需要API访问时禁用自动挂载
+
+      ## Role（命名空间级别权限）
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: myapp-role
+        namespace: production
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "pods/log"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get", "list", "watch", "update", "patch"]
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          resourceNames: ["myapp-config"]   # 精确到特定资源名
+          verbs: ["get"]
+
+      ## RoleBinding
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: myapp-rolebinding
+        namespace: production
+      subjects:
+        - kind: ServiceAccount
+          name: myapp-sa
+          namespace: production
+      roleRef:
+        kind: Role
+        name: myapp-role
+        apiGroup: rbac.authorization.k8s.io
+
+      ## 检查权限
+      kubectl auth can-i list pods --as=system:serviceaccount:production:myapp-sa -n production
+      kubectl auth can-i --list --as=system:serviceaccount:production:myapp-sa -n production
+
+  - title: "HPA 水平自动扩缩容"
+    type: kubernetes
+    tags: ["hpa", "autoscaling", "metrics-server", "scaling"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/"
+    version: "Kubernetes 1.23+ (autoscaling/v2 GA)"
+    content: |
+      # HPA 水平自动扩缩容（autoscaling/v2，K8s 1.23+ GA）
+
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: myapp-hpa
+        namespace: production
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: myapp
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+          # CPU 使用率
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 70
+          # 内存使用量
+          - type: Resource
+            resource:
+              name: memory
+              target:
+                type: AverageValue
+                averageValue: 400Mi
+          # 自定义指标（需要Prometheus Adapter）
+          - type: Pods
+            pods:
+              metric:
+                name: http_requests_per_second
+              target:
+                type: AverageValue
+                averageValue: "1000"
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 300   # 缩容稳定窗口5分钟
+            policies:
+              - type: Percent
+                value: 10
+                periodSeconds: 60             # 每分钟最多缩10%
+          scaleUp:
+            stabilizationWindowSeconds: 0     # 扩容立即生效
+            policies:
+              - type: Percent
+                value: 100
+                periodSeconds: 15             # 每15s最多翻倍
+
+      ## 查看HPA状态
+      kubectl get hpa -n production
+      kubectl describe hpa myapp-hpa -n production
+
+  - title: "PersistentVolume 存储"
+    type: kubernetes
+    tags: ["pv", "pvc", "storageclass", "statefulset"]
+    source: "Kubernetes官方文档"
+    source_url: "https://kubernetes.io/docs/concepts/storage/persistent-volumes/"
+    version: "Kubernetes 1.28+"
+    content: |
+      # PersistentVolume / PVC / StorageClass
+
+      ## StorageClass（动态供应，推荐）
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      provisioner: ebs.csi.aws.com    # AWS EBS CSI Driver
+      parameters:
+        type: gp3
+        iops: "3000"
+        throughput: "125"
+        encrypted: "true"
+      reclaimPolicy: Retain           # Delete(自动删除PV) | Retain(保留)
+      allowVolumeExpansion: true       # 允许扩容
+      volumeBindingMode: WaitForFirstConsumer  # 延迟绑定（跨AZ调度优化）
+
+      ## PVC（申请存储）
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: mysql-data
+        namespace: production
+      spec:
+        storageClassName: fast-ssd
+        accessModes:
+          - ReadWriteOnce            # RWO: 单节点读写（块存储）
+          # ReadWriteMany            # RWX: 多节点读写（NFS/CephFS）
+          # ReadOnlyMany             # ROX: 多节点只读
+        resources:
+          requests:
+            storage: 100Gi
+
+      ## StatefulSet + volumeClaimTemplates（每个Pod独立PVC）
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: mysql
+        namespace: production
+      spec:
+        serviceName: mysql-headless   # 必须指向Headless Service
+        replicas: 3
+        selector:
+          matchLabels:
+            app: mysql
+        template:
+          metadata:
+            labels:
+              app: mysql
+          spec:
+            containers:
+              - name: mysql
+                image: mysql:8.4
+                env:
+                  - name: MYSQL_ROOT_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: mysql-secret
+                        key: root-password
+                ports:
+                  - containerPort: 3306
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/mysql
+                resources:
+                  requests:
+                    memory: "1Gi"
+                    cpu: "500m"
+                  limits:
+                    memory: "4Gi"
+                    cpu: "2000m"
+                readinessProbe:
+                  exec:
+                    command: ["mysqladmin", "ping", "-h", "localhost"]
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              storageClassName: fast-ssd
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: 100Gi

@@ -1,0 +1,144 @@
+knowledge_items:
+  - title: "查找大文件"
+    type: linux
+    tags: ["find", "disk", "file", "size"]
+    content: |
+      # Linux 查找大文件命令
+
+      ## 查找7天前大于1GB的日志文件
+      find /var/log -type f -mtime +7 -size +1G
+
+      ## 查找并列出（带大小）
+      find /var/log -type f -mtime +7 -size +1G -exec ls -lh {} \;
+
+      ## 查找并删除（危险操作，先确认再执行）
+      # 先列出确认
+      find /var/log -type f -mtime +7 -size +1G
+      # 确认后删除
+      find /var/log -type f -mtime +7 -size +1G -delete
+
+      ## 参数说明
+      # -type f: 只查找文件
+      # -mtime +7: 修改时间超过7天
+      # -mtime -7: 修改时间在7天以内
+      # -size +1G: 大小超过1GB
+      # -size +100M: 大小超过100MB
+
+      ## 查找当前目录下最大的10个文件
+      find . -type f -exec du -h {} \; | sort -rh | head -10
+
+      ## 快速查看磁盘使用最高的目录
+      du -sh /* 2>/dev/null | sort -rh | head -20
+
+  - title: "SSH配置修改"
+    type: linux
+    tags: ["ssh", "sshd", "config", "port", "security"]
+    content: |
+      # SSH 配置修改
+
+      ## 修改SSH端口为2222
+
+      ### 方式1: sed命令（推荐）
+      # 备份原文件
+      cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.$(date +%Y%m%d_%H%M%S).bak
+
+      # 修改端口
+      sed -i 's/^#Port 22$/Port 2222/' /etc/ssh/sshd_config
+      # 如果Port行没有注释
+      sed -i 's/^Port [0-9]*/Port 2222/' /etc/ssh/sshd_config
+
+      # 验证修改
+      grep "^Port" /etc/ssh/sshd_config
+
+      ### 方式2: 使用awk
+      awk '/^#?Port/{$0="Port 2222"} {print}' /etc/ssh/sshd_config > /tmp/sshd_config_new
+      mv /tmp/sshd_config_new /etc/ssh/sshd_config
+
+      ## 重启SSH服务
+      # RHEL/CentOS 7+
+      systemctl restart sshd
+      # Ubuntu/Debian
+      systemctl restart ssh
+      # RHEL/CentOS 6
+      service sshd restart
+
+      ## 防火墙放行新端口（RHEL 7+）
+      firewall-cmd --permanent --add-port=2222/tcp
+      firewall-cmd --reload
+
+      ## 防火墙放行新端口（Ubuntu/Debian iptables）
+      iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
+      iptables-save > /etc/iptables/rules.v4
+
+      ## 回滚命令
+      cp -p /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+      systemctl restart sshd
+
+      ## 风险提示
+      # 修改SSH端口前，务必确保防火墙已放行新端口
+      # 修改完毕后，先用新端口测试连接，再关闭旧连接
+      # 建议同时保留22端口一段时间作为备份
+
+  - title: "系统服务管理 systemctl"
+    type: linux
+    tags: ["systemctl", "service", "systemd"]
+    content: |
+      # systemctl 服务管理
+
+      ## 基本操作
+      systemctl start nginx        # 启动
+      systemctl stop nginx         # 停止
+      systemctl restart nginx      # 重启
+      systemctl reload nginx       # 重载配置（不中断服务）
+      systemctl status nginx       # 查看状态
+      systemctl enable nginx       # 开机自启
+      systemctl disable nginx      # 禁用自启
+      systemctl is-active nginx    # 是否运行中
+      systemctl is-enabled nginx   # 是否自启
+
+      ## 查看日志
+      journalctl -u nginx                    # 查看nginx日志
+      journalctl -u nginx -f                 # 实时跟踪
+      journalctl -u nginx --since today      # 今天的日志
+      journalctl -u nginx -n 100             # 最近100行
+      journalctl -u nginx --since "2024-01-01 00:00:00" --until "2024-01-01 23:59:59"
+
+      ## 版本差异
+      # RHEL/CentOS 6 使用 service 命令
+      service nginx start
+      service nginx status
+      chkconfig nginx on
+
+  - title: "网络诊断命令"
+    type: linux
+    tags: ["network", "ss", "netstat", "tcpdump", "ip"]
+    content: |
+      # Linux 网络诊断
+
+      ## 查看端口监听
+      ss -tlnp                    # 查看所有TCP监听端口（推荐）
+      ss -ulnp                    # 查看UDP监听端口
+      netstat -tlnp               # 老版本系统
+      ss -tlnp | grep :80         # 查看80端口
+
+      ## 查看连接状态
+      ss -tn state established    # 查看已建立连接
+      ss -s                       # 连接统计摘要
+
+      ## 抓包分析
+      tcpdump -i eth0 -w /tmp/capture.pcap           # 抓包保存文件
+      tcpdump -i eth0 port 80 -n                     # 抓取80端口包
+      tcpdump -i eth0 host 192.168.1.100 -n          # 指定主机
+      tcpdump -i eth0 -n -A port 8080 | head -100    # 实时查看HTTP内容
+
+      ## IP/路由管理
+      ip addr show                # 查看IP地址
+      ip route show               # 查看路由表
+      ip route add 10.0.0.0/8 via 192.168.1.1   # 添加路由
+      ip route del 10.0.0.0/8                    # 删除路由
+
+      ## 测试连通性
+      ping -c 4 8.8.8.8
+      traceroute 8.8.8.8
+      mtr 8.8.8.8                 # 动态traceroute
+      curl -v --connect-timeout 5 http://example.com

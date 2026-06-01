@@ -1,0 +1,182 @@
+knowledge_items:
+  - title: "ES集群健康检查"
+    type: elasticsearch
+    version: "7.x,8.x"
+    tags: ["cluster", "health", "monitoring"]
+    content: |
+      # Elasticsearch 集群健康检查
+
+      ## Curl命令
+      curl -X GET "http://localhost:9200/_cluster/health?pretty"
+
+      ## Kibana Dev Tools
+      GET _cluster/health
+
+      ## 响应字段说明
+      - status: green(所有分片可用)/yellow(主分片可用，副本分片不可用)/red(主分片不可用)
+      - number_of_nodes: 集群节点数
+      - number_of_data_nodes: 数据节点数
+      - active_primary_shards: 活跃主分片数
+      - active_shards: 活跃分片总数
+      - relocating_shards: 正在迁移的分片数
+      - initializing_shards: 正在初始化的分片数
+      - unassigned_shards: 未分配的分片数（>0表示有问题）
+
+      ## 版本差异
+      - ES 8.x: 默认开启Security，需要携带认证信息
+        curl -X GET "http://localhost:9200/_cluster/health?pretty" -u elastic:password
+
+  - title: "创建索引"
+    type: elasticsearch
+    version: "6.x,7.x,8.x"
+    tags: ["index", "create", "mapping"]
+    content: |
+      # 创建Elasticsearch索引
+
+      ## ES 7.x/8.x（无type）
+      PUT /my-index
+      {
+        "settings": {
+          "number_of_shards": 3,
+          "number_of_replicas": 1,
+          "refresh_interval": "30s"
+        },
+        "mappings": {
+          "properties": {
+            "title": { "type": "text", "analyzer": "ik_max_word" },
+            "content": { "type": "text" },
+            "created_at": { "type": "date", "format": "yyyy-MM-dd HH:mm:ss" },
+            "status": { "type": "keyword" },
+            "score": { "type": "float" }
+          }
+        }
+      }
+
+      ## ES 6.x（有type，使用_doc）
+      PUT /my-index
+      {
+        "settings": { "number_of_shards": 5, "number_of_replicas": 1 },
+        "mappings": {
+          "_doc": {
+            "properties": {
+              "title": { "type": "text" }
+            }
+          }
+        }
+      }
+
+      ## 注意事项
+      - 分片数创建后不可修改，副本数可以修改
+      - 生产环境建议 number_of_shards = 节点数 或 节点数的整数倍
+      - ES 7.x 开始废弃 type，8.x 完全移除
+
+  - title: "ILM索引生命周期管理"
+    type: elasticsearch
+    version: "6.6+,7.x,8.x"
+    tags: ["ilm", "lifecycle", "hot", "warm", "cold", "delete"]
+    content: |
+      # ILM索引生命周期策略
+
+      ## 创建ILM策略
+      PUT _ilm/policy/my-logs-policy
+      {
+        "policy": {
+          "phases": {
+            "hot": {
+              "min_age": "0ms",
+              "actions": {
+                "rollover": {
+                  "max_primary_shard_size": "50gb",
+                  "max_age": "7d"
+                }
+              }
+            },
+            "warm": {
+              "min_age": "7d",
+              "actions": {
+                "shrink": { "number_of_shards": 1 },
+                "forcemerge": { "max_num_segments": 1 }
+              }
+            },
+            "cold": {
+              "min_age": "30d",
+              "actions": {
+                "freeze": {}
+              }
+            },
+            "delete": {
+              "min_age": "90d",
+              "actions": {
+                "delete": {}
+              }
+            }
+          }
+        }
+      }
+
+  - title: "ES SQL查询"
+    type: elasticsearch
+    version: "6.3+,7.x,8.x"
+    tags: ["sql", "query", "search"]
+    content: |
+      # Elasticsearch SQL
+
+      ## REST API方式（ES 6.3+）
+      POST /_sql?format=txt
+      {
+        "query": "SELECT * FROM my-index WHERE status = 'active' LIMIT 100"
+      }
+
+      ## Kibana Dev Tools方式
+      POST /_sql?format=json
+      {
+        "query": "SELECT host, COUNT(*) as cnt FROM logs GROUP BY host ORDER BY cnt DESC LIMIT 10"
+      }
+
+      ## SQL CLI方式
+      ./bin/elasticsearch-sql-cli http://localhost:9200
+
+      ## 注意事项
+      - SQL接口自ES 6.3起支持
+      - 不支持所有ES功能，复杂聚合建议使用DSL
+      - format参数: txt/json/csv/tsv/smile/cbor/yaml
+
+  - title: "快照备份与恢复"
+    type: elasticsearch
+    version: "6.x,7.x,8.x"
+    tags: ["snapshot", "backup", "restore", "repository"]
+    content: |
+      # Elasticsearch 快照备份
+
+      ## 1. 注册快照仓库
+      PUT /_snapshot/my-backup-repo
+      {
+        "type": "fs",
+        "settings": {
+          "location": "/mnt/backups/elasticsearch",
+          "compress": true
+        }
+      }
+
+      ## 2. 创建快照
+      PUT /_snapshot/my-backup-repo/snapshot-2024-01-01
+      {
+        "indices": "my-index,logs-*",
+        "ignore_unavailable": true,
+        "include_global_state": false
+      }
+
+      ## 3. 查看快照状态
+      GET /_snapshot/my-backup-repo/snapshot-2024-01-01
+
+      ## 4. 恢复快照
+      POST /_snapshot/my-backup-repo/snapshot-2024-01-01/_restore
+      {
+        "indices": "my-index",
+        "rename_pattern": "(.+)",
+        "rename_replacement": "restored_$1"
+      }
+
+      ## 注意事项
+      - 恢复前目标索引必须关闭或不存在
+      - 生产环境建议使用S3/GCS/Azure等云存储

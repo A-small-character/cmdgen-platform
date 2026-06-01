@@ -1,0 +1,115 @@
+app:
+  name: "智能命令生成平台"
+  version: "1.0.0"
+  env: "development"
+  port: 8080
+  debug: true
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "cmdgen"
+  user: "postgres"
+  password: "postgres"
+  sslmode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+ai:
+  default_provider: "openai"
+  timeout: 60
+  max_tokens: 4096
+  temperature: 0.1
+
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-4o"
+
+  claude:
+    api_key: "${CLAUDE_API_KEY}"
+    base_url: "https://api.anthropic.com"
+    model: "claude-opus-4-8"
+
+  deepseek:
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama3"
+
+vector:
+  provider: "elasticsearch"
+  dimension: 1536
+
+  elasticsearch:
+    addresses:
+      - "http://localhost:9200"
+    username: ""
+    password: ""
+    index_prefix: "cmdgen_vectors"
+
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection: "cmdgen"
+
+search:
+  bleve_path: "./data/bleve_index"
+
+crawler:
+  timeout: 30
+  max_retries: 3
+  user_agent: "CmdGen/1.0 (Command Generation Platform)"
+  rate_limit: 1
+
+  sources:
+    - name: "elastic_docs"
+      base_url: "https://www.elastic.co/guide/en/elasticsearch/reference"
+      priority: 1
+    - name: "cisco_docs"
+      base_url: "https://www.cisco.com/c/en/us/support"
+      priority: 1
+    - name: "huawei_docs"
+      base_url: "https://support.huawei.com"
+      priority: 1
+    - name: "linux_man"
+      base_url: "https://man7.org/linux/man-pages"
+      priority: 2
+    - name: "docker_docs"
+      base_url: "https://docs.docker.com"
+      priority: 1
+    - name: "kubernetes_docs"
+      base_url: "https://kubernetes.io/docs"
+      priority: 1
+    - name: "mysql_docs"
+      base_url: "https://dev.mysql.com/doc/refman"
+      priority: 1
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expire_hours: 24
+
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  file: "./logs/app.log"
+
+metrics:
+  enabled: true
+  port: 9090
+
+plugin:
+  dir: "./plugins"
+  enabled: true

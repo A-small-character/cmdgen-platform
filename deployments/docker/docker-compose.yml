@@ -1,0 +1,236 @@
+version: "3.9"
+
+services:
+  # ============================================================
+  # 智能命令生成平台 - 核心服务
+  # ============================================================
+  cmdgen-api:
+    build:
+      context: ../../
+      dockerfile: deployments/docker/Dockerfile
+    container_name: cmdgen-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "9090:9090"  # Prometheus metrics
+    environment:
+      - APP_ENV=production
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=cmdgen
+      - DATABASE_USER=cmdgen
+      - DATABASE_PASSWORD=${DB_PASSWORD:-cmdgen123}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - AI_DEFAULT_PROVIDER=${AI_DEFAULT_PROVIDER:-openai}
+      - VECTOR_ELASTICSEARCH_ADDRESSES=http://elasticsearch:9200
+    volumes:
+      - ./configs:/app/configs:ro
+      - cmdgen_logs:/app/logs
+      - cmdgen_plugins:/app/plugins
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - cmdgen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================
+  # PostgreSQL 数据库
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cmdgen-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cmdgen
+      POSTGRES_USER: cmdgen
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cmdgen123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - cmdgen-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmdgen -d cmdgen"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # Redis 缓存
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: cmdgen-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - cmdgen-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ============================================================
+  # Elasticsearch 向量存储 + 知识库
+  # ============================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.0
+    container_name: cmdgen-elasticsearch
+    restart: unless-stopped
+    environment:
+      - node.name=es01
+      - cluster.name=cmdgen-cluster
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - cmdgen-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================
+  # Kibana (可选，用于ES管理)
+  # ============================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.16.0
+    container_name: cmdgen-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - cmdgen-network
+    profiles:
+      - monitoring
+
+  # ============================================================
+  # Ollama 本地LLM (可选)
+  # ============================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cmdgen-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - cmdgen-network
+    profiles:
+      - local-llm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ============================================================
+  # Prometheus 监控
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cmdgen-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9091:9090"
+    networks:
+      - cmdgen-network
+    profiles:
+      - monitoring
+
+  # ============================================================
+  # Grafana 可视化
+  # ============================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cmdgen-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - cmdgen-network
+    profiles:
+      - monitoring
+
+# ============================================================
+# 数据卷
+# ============================================================
+volumes:
+  postgres_data:
+  redis_data:
+  es_data:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+  cmdgen_logs:
+  cmdgen_plugins:
+
+# ============================================================
+# 网络
+# ============================================================
+networks:
+  cmdgen-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

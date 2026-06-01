@@ -1,0 +1,259 @@
+---
+# ============================================================
+# Namespace
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cmdgen
+  labels:
+    app: cmdgen-platform
+
+---
+# ============================================================
+# ConfigMap
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cmdgen-config
+  namespace: cmdgen
+data:
+  config.yaml: |
+    app:
+      name: "智能命令生成平台"
+      version: "1.0.0"
+      env: "production"
+      port: 8080
+    database:
+      host: "postgres-service"
+      port: 5432
+      name: "cmdgen"
+      sslmode: "disable"
+    redis:
+      host: "redis-service"
+      port: 6379
+    vector:
+      provider: "elasticsearch"
+      elasticsearch:
+        addresses:
+          - "http://elasticsearch-service:9200"
+        index_prefix: "cmdgen_vectors"
+
+---
+# ============================================================
+# Secret
+# ============================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cmdgen-secrets
+  namespace: cmdgen
+type: Opaque
+stringData:
+  db-password: "cmdgen-prod-password"
+  openai-api-key: ""
+  claude-api-key: ""
+  deepseek-api-key: ""
+  jwt-secret: "your-jwt-secret-here"
+
+---
+# ============================================================
+# Deployment - API Server
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cmdgen-api
+  namespace: cmdgen
+  labels:
+    app: cmdgen-api
+    version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cmdgen-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: cmdgen-api
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [cmdgen-api]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: cmdgen-api
+          image: your-registry/cmdgen-platform:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cmdgen-secrets
+                  key: db-password
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cmdgen-secrets
+                  key: openai-api-key
+            - name: CLAUDE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cmdgen-secrets
+                  key: claude-api-key
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cmdgen-secrets
+                  key: deepseek-api-key
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cmdgen-secrets
+                  key: jwt-secret
+          volumeMounts:
+            - name: config
+              mountPath: /app/configs
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: cmdgen-config
+        - name: logs
+          emptyDir: {}
+
+---
+# ============================================================
+# Service
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: cmdgen-api-service
+  namespace: cmdgen
+  labels:
+    app: cmdgen-api
+spec:
+  selector:
+    app: cmdgen-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+---
+# ============================================================
+# HPA 水平扩缩容
+# ============================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cmdgen-api-hpa
+  namespace: cmdgen
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cmdgen-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ============================================================
+# Ingress
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cmdgen-ingress
+  namespace: cmdgen
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - cmdgen.yourdomain.com
+      secretName: cmdgen-tls
+  rules:
+    - host: cmdgen.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cmdgen-api-service
+                port:
+                  number: 80

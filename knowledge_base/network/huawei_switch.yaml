@@ -1,0 +1,184 @@
+knowledge_items:
+  - title: "华为交换机VLAN配置"
+    type: network
+    vendor: huawei
+    version: "VRP V200R010+"
+    tags: ["vlan", "huawei", "switch", "interface"]
+    content: |
+      # 华为交换机 VLAN 配置
+
+      ## 创建VLAN并配置接口（Huawei VRP）
+
+      ### 创建VLAN
+      system-view
+      vlan batch 100 200 300
+
+      ### 配置Access接口
+      interface GigabitEthernet0/0/1
+       port link-type access
+       port default vlan 100
+       quit
+
+      ### 配置Trunk接口
+      interface GigabitEthernet0/0/2
+       port link-type trunk
+       port trunk pvid vlan 1
+       port trunk allow-pass vlan 100 200 300
+       quit
+
+      ### 配置Hybrid接口
+      interface GigabitEthernet0/0/3
+       port link-type hybrid
+       port hybrid pvid vlan 100
+       port hybrid untagged vlan 100
+       port hybrid tagged vlan 200 300
+       quit
+
+      ### 配置VLANIF（三层网关）
+      interface Vlanif100
+       ip address 192.168.100.1 255.255.255.0
+       quit
+
+      ### 查看VLAN信息
+      display vlan
+      display vlan 100 verbose
+      display interface GigabitEthernet0/0/1
+
+  - title: "华为交换机OSPF配置"
+    type: network
+    vendor: huawei
+    version: "VRP V200R010+"
+    tags: ["ospf", "routing", "huawei"]
+    content: |
+      # 华为交换机/路由器 OSPF 配置
+
+      ## 基本OSPF配置
+      system-view
+      ospf 1 router-id 1.1.1.1
+       area 0
+        network 192.168.1.0 0.0.0.255
+        network 10.0.0.0 0.0.0.3
+       quit
+      quit
+
+      ## 配置OSPF认证
+      ospf 1
+       area 0
+        authentication-mode md5 1 cipher Admin@123
+       quit
+      quit
+
+      ## 配置OSPF被动接口（不发Hello包）
+      ospf 1
+       silent-interface GigabitEthernet0/0/3
+      quit
+
+      ## 查看OSPF状态
+      display ospf peer
+      display ospf routing
+      display ospf interface
+
+  - title: "Cisco交换机VLAN配置"
+    type: network
+    vendor: cisco
+    version: "IOS 15.x, IOS-XE 16.x+"
+    tags: ["vlan", "cisco", "switch"]
+    content: |
+      # Cisco 交换机 VLAN 配置
+
+      ## 创建VLAN
+      conf t
+      vlan 100
+       name SERVERS
+      vlan 200
+       name USERS
+      exit
+
+      ## 配置Access接口
+      interface GigabitEthernet1/0/1
+       switchport mode access
+       switchport access vlan 100
+       spanning-tree portfast
+       exit
+
+      ## 配置Trunk接口
+      interface GigabitEthernet1/0/48
+       switchport mode trunk
+       switchport trunk native vlan 1
+       switchport trunk allowed vlan 100,200,300
+       exit
+
+      ## 配置SVI（三层网关）
+      interface Vlan100
+       ip address 192.168.100.1 255.255.255.0
+       no shutdown
+       exit
+
+      ## 查看VLAN信息
+      show vlan brief
+      show interfaces GigabitEthernet1/0/1 switchport
+      show interfaces trunk
+
+  - title: "H3C交换机VLAN配置"
+    type: network
+    vendor: h3c
+    version: "Comware V7"
+    tags: ["vlan", "h3c", "switch"]
+    content: |
+      # H3C 交换机 VLAN 配置（Comware V7）
+
+      ## 创建VLAN
+      system-view
+      vlan 100
+       name SERVERS
+       quit
+
+      ## 配置Access接口
+      interface GigabitEthernet1/0/1
+       port link-type access
+       port access vlan 100
+       quit
+
+      ## 配置Trunk接口
+      interface GigabitEthernet1/0/24
+       port link-type trunk
+       port trunk permit vlan 100 200 300
+       quit
+
+      ## 配置VLAN接口（三层）
+      interface Vlan-interface 100
+       ip address 192.168.100.1 24
+       quit
+
+      ## 查看
+      display vlan 100
+      display interface GigabitEthernet1/0/1
+
+  - title: "Palo Alto防火墙安全策略"
+    type: network
+    vendor: paloalto
+    version: "PAN-OS 10.x+"
+    tags: ["firewall", "security-policy", "paloalto", "nat"]
+    content: |
+      # Palo Alto 防火墙配置
+
+      ## CLI配置安全策略
+      configure
+      set rulebase security rules "Allow-Web" from trust to untrust
+      set rulebase security rules "Allow-Web" source any
+      set rulebase security rules "Allow-Web" destination any
+      set rulebase security rules "Allow-Web" application [web-browsing ssl]
+      set rulebase security rules "Allow-Web" service application-default
+      set rulebase security rules "Allow-Web" action allow
+      commit
+
+      ## 配置NAT规则
+      set rulebase nat rules "Inside-NAT" from trust to untrust
+      set rulebase nat rules "Inside-NAT" source 192.168.0.0/16
+      set rulebase nat rules "Inside-NAT" nat-type ipv4
+      set rulebase nat rules "Inside-NAT" source-translation dynamic-ip-and-port interface-address interface ethernet1/1
+      commit
+
+      ## 查看安全策略
+      show running security-policy
+      show session all

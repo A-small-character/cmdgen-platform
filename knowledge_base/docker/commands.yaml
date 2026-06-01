@@ -1,0 +1,407 @@
+# 来源: https://docs.docker.com/reference/cli/docker/
+# 版本基线: Docker Engine 27.x / Docker Compose v2.x
+knowledge_items:
+
+  - title: "docker run 常用参数"
+    type: docker
+    tags: ["run", "container", "lifecycle"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/reference/cli/docker/container/run/"
+    version: "Docker Engine 20.10+"
+    content: |
+      # docker run — 创建并启动容器
+
+      ## 基本语法
+      docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+      ## 常用参数（来自官方文档）
+      -d, --detach          后台运行容器
+      -it                   交互式终端（-i 保持stdin开放，-t 分配伪TTY）
+      --name string         容器名称
+      -p, --publish         端口映射 hostPort:containerPort
+      -P, --publish-all     将所有EXPOSE端口映射到随机主机端口
+      -v, --volume          绑定挂载卷  src:dst[:ro]
+      --mount               挂载（推荐，语义更清晰）
+      -e, --env             设置环境变量
+      --env-file            从文件读取环境变量
+      --network             网络模式(bridge/host/none/container:name)
+      --rm                  容器退出后自动删除
+      --restart             重启策略(no/always/on-failure[:n]/unless-stopped)
+      --memory, -m          内存限制（如 512m, 1g）
+      --cpus                CPU配额（如 0.5 表示50%）
+      --pids-limit          进程数限制
+      --read-only           容器根文件系统只读
+      --user, -u            用户(uid[:gid])
+      --workdir, -w         工作目录
+      --entrypoint          覆盖默认ENTRYPOINT
+      --security-opt        安全选项（如 no-new-privileges:true）
+      --cap-drop ALL        删除所有Linux Capabilities（最小权限原则）
+      --cap-add             补充添加单个Capability
+      --health-cmd          健康检查命令
+      --health-interval     健康检查间隔（默认30s）
+      --health-retries      失败重试次数（默认3）
+      --log-driver          日志驱动(json-file/syslog/journald/fluentd)
+      --log-opt             日志选项（如 max-size=100m,max-file=3）
+      --label               设置元数据标签
+
+      ## 示例
+
+      ### 后台运行Nginx，端口映射，资源限制
+      docker run -d \
+        --name nginx-prod \
+        -p 80:80 -p 443:443 \
+        -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
+        -v /var/log/nginx:/var/log/nginx \
+        --memory 256m --cpus 0.5 \
+        --restart unless-stopped \
+        --log-opt max-size=100m --log-opt max-file=5 \
+        nginx:1.27-alpine
+
+      ### 交互式调试容器
+      docker run -it --rm \
+        --name debug \
+        -v $(pwd):/workspace \
+        -w /workspace \
+        ubuntu:24.04 bash
+
+      ### 最小权限安全容器
+      docker run -d \
+        --name app \
+        --read-only \
+        --cap-drop ALL \
+        --cap-add NET_BIND_SERVICE \
+        --security-opt no-new-privileges:true \
+        --user 1001:1001 \
+        myapp:latest
+
+  - title: "docker build 镜像构建"
+    type: docker
+    tags: ["build", "image", "dockerfile", "buildkit"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/reference/cli/docker/buildx/build/"
+    version: "Docker Engine 23.0+ (BuildKit默认启用)"
+    content: |
+      # docker build / docker buildx build
+
+      ## 语法
+      docker build [OPTIONS] PATH | URL | -
+      docker buildx build [OPTIONS] PATH   # 推荐，支持多平台
+
+      ## 常用参数
+      -t, --tag             镜像名:标签（可多次指定）
+      -f, --file            指定Dockerfile路径（默认 PATH/Dockerfile）
+      --build-arg           构建参数（对应Dockerfile中ARG）
+      --no-cache            不使用构建缓存
+      --pull                始终拉取最新基础镜像
+      --target              多阶段构建中指定目标阶段
+      --platform            目标平台（linux/amd64,linux/arm64）
+      --cache-from          缓存来源（type=registry,ref=image:tag）
+      --cache-to            缓存目标（type=inline 或 type=registry）
+      --push                构建完成后推送到镜像仓库
+      --output              输出类型（type=docker/oci/tar）
+      --secret              安全传递构建密钥（不写入镜像层）
+      --ssh                 SSH agent转发（用于私有git仓库）
+      --progress            构建进度输出(auto/plain/tty)
+      --sbom                生成SBOM软件物料清单（Docker 4.11+）
+      --provenance          生成构建证明
+
+      ## 示例
+
+      ### 标准构建
+      docker build -t myapp:1.0.0 -t myapp:latest .
+
+      ### 多平台构建并推送
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        -t registry.example.com/myapp:1.0.0 \
+        --push .
+
+      ### 使用构建缓存加速CI
+      docker buildx build \
+        --cache-from type=registry,ref=registry.example.com/myapp:cache \
+        --cache-to   type=registry,ref=registry.example.com/myapp:cache,mode=max \
+        -t registry.example.com/myapp:latest \
+        --push .
+
+      ### 安全：通过--secret传递SSH密钥（不写入镜像）
+      docker buildx build \
+        --secret id=ssh_key,src=$HOME/.ssh/id_rsa \
+        -t myapp:latest .
+      # Dockerfile中使用: RUN --mount=type=secret,id=ssh_key ...
+
+  - title: "docker network 网络管理"
+    type: docker
+    tags: ["network", "bridge", "overlay", "dns"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/reference/cli/docker/network/"
+    version: "Docker Engine 20.10+"
+    content: |
+      # docker network — 网络管理
+
+      ## 网络驱动类型
+      bridge   默认，同主机容器互通，有NAT隔离
+      host     共享主机网络栈，无隔离（性能最高）
+      none     无网络
+      overlay  Swarm/跨主机容器通信
+      macvlan  容器获得独立MAC地址（直接接入物理网络）
+      ipvlan   L2/L3模式，无MAC欺骗限制
+
+      ## 常用命令
+      # 创建自定义bridge网络（推荐，支持DNS自动发现）
+      docker network create \
+        --driver bridge \
+        --subnet 172.18.0.0/16 \
+        --gateway 172.18.0.1 \
+        --opt com.docker.network.bridge.name=br-myapp \
+        myapp-network
+
+      # 列出网络
+      docker network ls
+      docker network ls --filter driver=bridge
+
+      # 查看网络详情（含容器IP）
+      docker network inspect myapp-network
+      docker network inspect myapp-network --format '{{json .Containers}}'
+
+      # 连接/断开容器
+      docker network connect    myapp-network container1
+      docker network disconnect myapp-network container1
+
+      # 删除未使用网络
+      docker network prune
+      docker network rm myapp-network
+
+      ## 最佳实践
+      # 1. 为每个应用创建独立bridge网络（隔离）
+      # 2. 同网络内用容器名作为主机名（内置DNS自动解析）
+      # 3. 避免使用 --link（已废弃，用自定义网络替代）
+      # 4. 生产环境限制容器间通信：--icc=false（daemon配置）
+
+  - title: "docker compose 编排管理"
+    type: docker
+    tags: ["compose", "multi-container", "yaml", "v2"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/reference/cli/docker/compose/"
+    version: "Docker Compose v2.x (docker compose，内置于Docker Engine 23+)"
+    content: |
+      # Docker Compose v2 — 多容器编排
+
+      ## 注意：Docker Engine 23+ 内置 docker compose（无连字符）
+      ## docker-compose（独立工具）已进入维护模式，推荐迁移到 docker compose
+
+      ## 常用命令
+      docker compose up -d                    # 后台启动所有服务
+      docker compose up -d --build            # 构建后启动
+      docker compose up -d --scale web=3      # 启动并扩容web到3实例
+      docker compose down                     # 停止并删除容器、网络
+      docker compose down -v                  # 同时删除卷（危险）
+      docker compose stop                     # 仅停止容器（不删除）
+      docker compose start                    # 启动已停止的容器
+      docker compose restart [service]        # 重启
+      docker compose ps                       # 查看服务状态
+      docker compose ps -a                    # 含已停止的容器
+      docker compose logs -f [service]        # 跟踪日志
+      docker compose logs --tail=100 web      # 最近100行
+      docker compose exec web bash            # 进入容器
+      docker compose run --rm web pytest      # 一次性运行命令
+      docker compose build [service]          # 构建镜像
+      docker compose pull                     # 拉取镜像
+      docker compose config                   # 验证并输出合并后的compose配置
+      docker compose top                      # 查看容器进程
+      docker compose events                   # 实时事件流
+
+      ## compose.yaml 关键字段（v2语法，推荐用compose.yaml而非docker-compose.yml）
+      services:
+        web:
+          image: nginx:1.27-alpine
+          build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+              BUILD_ENV: production
+          ports:
+            - "80:80"
+          volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - static_files:/usr/share/nginx/html:ro
+          environment:
+            - NGINX_ENVSUBST_TEMPLATE_DIR=/etc/nginx/templates
+          env_file:
+            - .env
+          depends_on:
+            db:
+              condition: service_healthy   # 等待健康检查通过
+          networks:
+            - frontend
+            - backend
+          deploy:
+            replicas: 2
+            resources:
+              limits:
+                cpus: '0.5'
+                memory: 256M
+          restart: unless-stopped
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 10s
+          logging:
+            driver: json-file
+            options:
+              max-size: "100m"
+              max-file: "5"
+        db:
+          image: mysql:8.4
+          environment:
+            MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+            MYSQL_DATABASE: myapp
+            MYSQL_USER: appuser
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+          volumes:
+            - db_data:/var/lib/mysql
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+          networks:
+            - backend
+          healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+      volumes:
+        db_data:
+          driver: local
+        static_files:
+      networks:
+        frontend:
+        backend:
+          internal: true    # 禁止外部访问（仅内部容器互通）
+
+  - title: "docker system 维护管理"
+    type: docker
+    tags: ["prune", "system", "cleanup", "disk"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/reference/cli/docker/system/"
+    version: "Docker Engine 20.10+"
+    content: |
+      # docker system — 系统维护
+
+      ## 查看磁盘使用
+      docker system df              # 汇总
+      docker system df -v           # 详细（含每个镜像/容器/卷）
+
+      ## 清理（谨慎使用）
+      # 删除所有停止的容器、未被引用的网络、悬空镜像和构建缓存
+      docker system prune           # 交互确认
+      docker system prune -f        # 强制，不确认（生产慎用）
+      docker system prune -a        # 同时删除所有未使用镜像（含tagged）
+      docker system prune -a --volumes  # 同时删除卷（危险，会丢数据）
+
+      # 单独清理各类资源
+      docker container prune        # 停止的容器
+      docker image prune            # 悬空镜像(dangling)
+      docker image prune -a         # 所有未使用镜像
+      docker volume prune           # 未挂载的卷（危险）
+      docker network prune          # 未使用网络
+      docker builder prune          # 构建缓存
+      docker builder prune --keep-storage 10GB  # 保留10GB缓存
+
+      ## 查看事件日志
+      docker system events                            # 实时监听
+      docker system events --since 2024-01-01         # 指定时间
+      docker system events --filter type=container    # 过滤容器事件
+      docker system events --filter event=die         # 过滤崩溃事件
+
+      ## 版本和信息
+      docker version                # 客户端/服务端版本
+      docker info                   # 系统详情（存储驱动、日志驱动等）
+
+  - title: "Dockerfile最佳实践"
+    type: docker
+    tags: ["dockerfile", "best-practice", "multi-stage", "security"]
+    source: "Docker官方文档"
+    source_url: "https://docs.docker.com/build/building/best-practices/"
+    version: "Docker Engine 20.10+ / BuildKit"
+    content: |
+      # Dockerfile最佳实践（来自官方 Best Practices）
+
+      ## Go应用多阶段构建示例
+      # syntax=docker/dockerfile:1
+      FROM golang:1.24-alpine AS builder
+      WORKDIR /build
+      # 先复制依赖文件，利用层缓存
+      COPY go.mod go.sum ./
+      RUN go mod download
+      COPY . .
+      RUN CGO_ENABLED=0 GOOS=linux go build \
+          -ldflags="-w -s" \
+          -trimpath \
+          -o app ./cmd/server
+
+      FROM gcr.io/distroless/static-debian12 AS final
+      # distroless: 无shell、无包管理器，攻击面最小
+      COPY --from=builder /build/app /app
+      COPY --from=builder /build/configs /configs
+      USER nonroot:nonroot
+      EXPOSE 8080
+      HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+          CMD ["/app", "health"]
+      ENTRYPOINT ["/app"]
+
+      ## Node.js应用多阶段构建
+      # syntax=docker/dockerfile:1
+      FROM node:22-alpine AS deps
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci --only=production
+
+      FROM node:22-alpine AS builder
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci
+      COPY . .
+      RUN npm run build
+
+      FROM node:22-alpine AS runner
+      WORKDIR /app
+      ENV NODE_ENV=production
+      RUN addgroup --system --gid 1001 nodejs && \
+          adduser  --system --uid 1001 nextjs
+      COPY --from=deps    /app/node_modules ./node_modules
+      COPY --from=builder /app/.next        ./.next
+      COPY --from=builder /app/public       ./public
+      USER nextjs
+      EXPOSE 3000
+      CMD ["node", "server.js"]
+
+      ## .dockerignore（标准模板）
+      # .dockerignore
+      **/.git
+      **/.gitignore
+      **/node_modules
+      **/__pycache__
+      **/*.pyc
+      **/dist
+      **/build
+      **/.env
+      **/.env.*
+      **/Dockerfile*
+      **/docker-compose*
+      **/.dockerignore
+      **/README.md
+      **/CHANGELOG.md
+      **/*.test.*
+      **/*.spec.*
+      **/coverage
+      **/.nyc_output
+
+      ## 关键原则（官方推荐）
+      1. 使用 .dockerignore 减小构建上下文
+      2. 每条RUN指令用 && 合并，减少层数
+      3. 安装包后清理缓存：apt-get clean && rm -rf /var/lib/apt/lists/*
+      4. 指定明确版本标签，避免 latest
+      5. 使用非root用户运行
+      6. 多阶段构建：builder阶段安装编译工具，final阶段只含运行时
+      7. COPY优先于ADD（ADD有解压和下载URL功能，容易误用）
+      8. 敏感信息用 --secret 或 ARG（不要用ENV存密码）
