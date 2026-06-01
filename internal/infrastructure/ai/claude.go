@@ -24,7 +24,7 @@ func NewClaudeProvider(apiKey, baseURL, model string) *ClaudeProvider {
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		model:   model,
-		client:  &http.Client{},
+		client:  newProxyHTTPClient(), // 复用代理感知客户端
 	}
 }
 

@@ -3,6 +3,10 @@ package ai
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -12,15 +16,47 @@ type OpenAIProvider struct {
 	model  string
 }
 
+// NewOpenAIProvider 创建 OpenAI 提供商
+// 自动读取 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY 环境变量，支持国内代理
 func NewOpenAIProvider(apiKey, baseURL, model string) *OpenAIProvider {
 	cfg := openai.DefaultConfig(apiKey)
 	if baseURL != "" {
 		cfg.BaseURL = baseURL
 	}
+
+	// 构建支持代理的 HTTP 客户端
+	cfg.HTTPClient = newProxyHTTPClient()
+
 	return &OpenAIProvider{
 		client: openai.NewClientWithConfig(cfg),
 		model:  model,
 	}
+}
+
+// newProxyHTTPClient 构建自动检测代理的 HTTP 客户端
+// 优先级：HTTP_PROXY_URL 环境变量 > HTTP_PROXY/HTTPS_PROXY 系统变量 > 直连
+func newProxyHTTPClient() *http.Client {
+	transport := &http.Transport{
+		Proxy:               proxyFromEnv(),
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   120 * time.Second,
+	}
+}
+
+// proxyFromEnv 按优先级读取代理配置
+func proxyFromEnv() func(*http.Request) (*url.URL, error) {
+	// 1. 优先读取自定义变量 HTTP_PROXY_URL（精确控制，不影响其他程序）
+	if proxyURL := os.Getenv("HTTP_PROXY_URL"); proxyURL != "" {
+		u, err := url.Parse(proxyURL)
+		if err == nil {
+			return http.ProxyURL(u)
+		}
+	}
+	// 2. 读取标准系统代理变量（Clash/V2Ray 等工具设置的）
+	return http.ProxyFromEnvironment
 }
 
 func (p *OpenAIProvider) Name() string { return "openai" }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // OllamaProvider 本地LLM提供商
@@ -20,7 +21,8 @@ func NewOllamaProvider(baseURL, model string) *OllamaProvider {
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
 	}
-	return &OllamaProvider{baseURL: baseURL, model: model, client: &http.Client{}}
+	// Ollama 是本地服务，不需要代理，直接使用普通客户端
+	return &OllamaProvider{baseURL: baseURL, model: model, client: &http.Client{Timeout: 120 * time.Second}}
 }
 
 func (p *OllamaProvider) Name() string { return "ollama" }
