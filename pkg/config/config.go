@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -175,9 +176,35 @@ func Load(cfgFile string) (*Config, error) {
 			loadErr = e
 			return
 		}
+		// 展开 config 中 "${VAR_NAME}" 格式的环境变量引用
+		// Viper 不自动展开 yaml 值中的 ${} 占位符，需手动处理
+		expandConfigEnvVars(cfg)
 		instance = cfg
 	})
 	return instance, loadErr
+}
+
+// expandConfigEnvVars 将 config 中所有 "${VAR}" 格式的字段替换为实际环境变量值。
+// 若环境变量未设置，则保留空字符串（而非错误的占位符字符串发送到 API）。
+func expandConfigEnvVars(cfg *Config) {
+	expand := func(s string) string {
+		return os.ExpandEnv(s) // 展开 $VAR 和 ${VAR} 两种格式
+	}
+	// AI 提供商 Key
+	cfg.AI.OpenAI.APIKey   = expand(cfg.AI.OpenAI.APIKey)
+	cfg.AI.OpenAI.BaseURL  = expand(cfg.AI.OpenAI.BaseURL)
+	cfg.AI.Claude.APIKey   = expand(cfg.AI.Claude.APIKey)
+	cfg.AI.Claude.BaseURL  = expand(cfg.AI.Claude.BaseURL)
+	cfg.AI.DeepSeek.APIKey = expand(cfg.AI.DeepSeek.APIKey)
+	cfg.AI.DeepSeek.BaseURL = expand(cfg.AI.DeepSeek.BaseURL)
+	cfg.AI.Ollama.BaseURL  = expand(cfg.AI.Ollama.BaseURL)
+	// 数据库
+	cfg.Database.Password  = expand(cfg.Database.Password)
+	cfg.Database.Host      = expand(cfg.Database.Host)
+	// Redis
+	cfg.Redis.Password     = expand(cfg.Redis.Password)
+	// JWT
+	cfg.JWT.Secret         = expand(cfg.JWT.Secret)
 }
 
 func Get() *Config {
