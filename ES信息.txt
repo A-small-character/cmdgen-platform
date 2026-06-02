@@ -1,0 +1,4 @@
+
+| **Kibana A**（主）| http://localhost:5601 | `elastic` / `Cmdgen@ES2024` |
+| **Kibana B**（备）| http://localhost:5602 | `elastic` / `Cmdgen@ES2024` |
+
