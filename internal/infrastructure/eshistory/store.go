@@ -26,7 +26,8 @@ import (
 const (
 	historyIndex = "cmdgen_history"   // AI/离线生成的结果沉淀
 	// 命中阈值：BM25 分数高于此值才视为有效复用，避免不相关结果误命中
-	hitScoreThreshold = 8.0
+	// 实测口语化查询命中相关知识条目分数 13~29，无关查询通常 <10
+	hitScoreThreshold = 10.0
 )
 
 // Store ES 历史知识存储
@@ -104,7 +105,7 @@ func (s *Store) SearchHistory(ctx context.Context, query, category string) (*com
 	}
 
 	must := []map[string]any{
-		{"match": map[string]any{"query": map[string]any{"query": query, "minimum_should_match": "70%"}}},
+		{"match": map[string]any{"query": query}},
 	}
 	filter := []map[string]any{}
 	if category != "" {
