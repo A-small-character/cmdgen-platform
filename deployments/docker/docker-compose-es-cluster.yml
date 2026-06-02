@@ -1,0 +1,172 @@
+# ============================================================
+# 智能命令生成平台 - 双 ES 集群（互为 CCR 主备）
+# ============================================================
+# 集群 A (cmdgen-a): es-a1 / es-a2 / es-a3  -> 主集群, 端口 9200
+# 集群 B (cmdgen-b): es-b1 / es-b2 / es-b3  -> 备集群, 端口 9201
+# CCR 跨集群复制预留（当前不配置）
+#
+# 启动: docker compose -f deployments/docker/docker-compose-es-cluster.yml up -d
+# 停止: docker compose -f deployments/docker/docker-compose-es-cluster.yml down
+# 清空: docker compose -f deployments/docker/docker-compose-es-cluster.yml down -v
+#
+# 资源: 6 节点 x 768MB 堆 ≈ 9GB 内存
+# ============================================================
+
+x-es-common: &es-common
+  image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+  ulimits:
+    memlock: { soft: -1, hard: -1 }
+    nofile:  { soft: 65536, hard: 65536 }
+  deploy:
+    resources:
+      limits:
+        memory: 1500M
+  restart: unless-stopped
+
+services:
+  # ── 集群 A: cmdgen-a (主) ────────────────────────────────
+  es-a1:
+    <<: *es-common
+    container_name: es-a1
+    environment:
+      - node.name=es-a1
+      - cluster.name=cmdgen-a
+      - discovery.seed_hosts=es-a2,es-a3
+      - cluster.initial_master_nodes=es-a1,es-a2,es-a3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_a1_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  es-a2:
+    <<: *es-common
+    container_name: es-a2
+    environment:
+      - node.name=es-a2
+      - cluster.name=cmdgen-a
+      - discovery.seed_hosts=es-a1,es-a3
+      - cluster.initial_master_nodes=es-a1,es-a2,es-a3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    volumes:
+      - es_a2_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+
+  es-a3:
+    <<: *es-common
+    container_name: es-a3
+    environment:
+      - node.name=es-a3
+      - cluster.name=cmdgen-a
+      - discovery.seed_hosts=es-a1,es-a2
+      - cluster.initial_master_nodes=es-a1,es-a2,es-a3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    volumes:
+      - es_a3_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+
+  # ── 集群 B: cmdgen-b (备) ────────────────────────────────
+  es-b1:
+    <<: *es-common
+    container_name: es-b1
+    environment:
+      - node.name=es-b1
+      - cluster.name=cmdgen-b
+      - discovery.seed_hosts=es-b2,es-b3
+      - cluster.initial_master_nodes=es-b1,es-b2,es-b3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    volumes:
+      - es_b1_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  es-b2:
+    <<: *es-common
+    container_name: es-b2
+    environment:
+      - node.name=es-b2
+      - cluster.name=cmdgen-b
+      - discovery.seed_hosts=es-b1,es-b3
+      - cluster.initial_master_nodes=es-b1,es-b2,es-b3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    volumes:
+      - es_b2_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+
+  es-b3:
+    <<: *es-common
+    container_name: es-b3
+    environment:
+      - node.name=es-b3
+      - cluster.name=cmdgen-b
+      - discovery.seed_hosts=es-b1,es-b2
+      - cluster.initial_master_nodes=es-b1,es-b2,es-b3
+      - node.roles=master,data,ingest,remote_cluster_client
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+    volumes:
+      - es_b3_data:/usr/share/elasticsearch/data
+    networks: [es-net]
+
+  # ── Kibana (可选, profile=kibana) ────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.0.0
+    container_name: cmdgen-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://es-a1:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      es-a1:
+        condition: service_healthy
+    networks: [es-net]
+    restart: unless-stopped
+    profiles: [kibana]
+
+volumes:
+  es_a1_data:
+  es_a2_data:
+  es_a3_data:
+  es_b1_data:
+  es_b2_data:
+  es_b3_data:
+
+networks:
+  es-net:
+    driver: bridge

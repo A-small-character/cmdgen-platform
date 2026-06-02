@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cmdgen/platform/internal/application/agent"
-	"github.com/cmdgen/platform/internal/application/generator"
-	"github.com/cmdgen/platform/internal/domain/command"
-	"github.com/cmdgen/platform/pkg/errors"
+	"github.com/A-small-character/cmdgen-platform/internal/application/agent"
+	"github.com/A-small-character/cmdgen-platform/internal/application/generator"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/pkg/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

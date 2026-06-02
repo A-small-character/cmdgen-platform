@@ -16,11 +16,12 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cmdgen/platform/internal/application/generator"
-	"github.com/cmdgen/platform/internal/domain/command"
-	"github.com/cmdgen/platform/internal/infrastructure/ai"
-	appcfg "github.com/cmdgen/platform/pkg/config"
-	"github.com/cmdgen/platform/pkg/logger"
+	"github.com/A-small-character/cmdgen-platform/internal/application/generator"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/ai"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/eshistory"
+	appcfg "github.com/A-small-character/cmdgen-platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/pkg/logger"
 	"go.uber.org/zap"
 )
 
@@ -80,6 +81,7 @@ func main() {
 type desktopApp struct {
 	offline *generator.OfflineEngine
 	online  *generator.Engine
+	es      *eshistory.Store
 	cfg     *appcfg.Config
 }
 
@@ -94,6 +96,22 @@ func newApp(cfg *appcfg.Config) *desktopApp {
 			app.online = generator.NewEngine(mgr, nil, cfg)
 		}
 	}
+
+	// 连接 ES 知识库（主集群 9200），不可用时自动降级
+	esAddr := "http://localhost:9200"
+	if cfg != nil && len(cfg.Vector.Elasticsearch.Addresses) > 0 && cfg.Vector.Elasticsearch.Addresses[0] != "" {
+		esAddr = cfg.Vector.Elasticsearch.Addresses[0]
+	}
+	app.es = eshistory.New(esAddr)
+	if app.es.Available() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_ = app.es.EnsureIndex(ctx)
+		cancel()
+		logger.Info("ES 知识库已连接", zap.String("addr", esAddr))
+	} else {
+		logger.Info("ES 知识库不可用，使用离线/AI 模式", zap.String("addr", esAddr))
+	}
+
 	return app
 }
 
@@ -104,6 +122,9 @@ func (a *desktopApp) registerRoutes(mux *http.ServeMux) {
 	// AI 配置相关
 	mux.HandleFunc("/api/v1/config/ai", cors(a.handleSaveAI))
 	mux.HandleFunc("/api/v1/config/ai/status", cors(a.handleAIStatus))
+
+	// ES 知识库状态
+	mux.HandleFunc("/api/v1/stats", cors(a.handleStats))
 
 	// 健康检查
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -139,14 +160,22 @@ func (a *desktopApp) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		cat = command.CategoryLinux
 	}
 
+	// ── 三层查询策略 ──────────────────────────────────────────
+	// 1) ES 知识库命中 → 直接复用（最快）
+	if cached, ok := a.es.SearchHistory(r.Context(), req.Input, string(cat)); ok {
+		writeJSON(w, 200, map[string]interface{}{"code": 0, "data": cached, "source": "es-cache"})
+		return
+	}
+
 	var result *command.GenerateResult
 	var err error
 
-	// 优先 AI，失败降级到离线
+	// 2) AI 在线生成
 	if a.online != nil {
 		genReq := command.NewGenerateRequest(req.Input, cat, command.GenerateOptions{})
 		result, err = a.online.Generate(r.Context(), genReq)
 	}
+	// 3) 离线内置规则库兜底
 	if result == nil || err != nil {
 		result, err = a.offline.Generate(r.Context(), req.Input, cat)
 	}
@@ -155,7 +184,24 @@ func (a *desktopApp) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]interface{}{"code": 5005, "message": err.Error()})
 		return
 	}
+
+	// AI 生成的结果沉淀到 ES（离线规则结果不沉淀，因为本身就在内置库）
+	if result.Metadata.AIProvider != "" && result.Metadata.AIProvider != "offline" {
+		go a.es.SaveResult(context.Background(), req.Input, string(cat), result)
+	}
+
 	writeJSON(w, 200, map[string]interface{}{"code": 0, "data": result})
+}
+
+// handleStats 返回 ES 知识库状态
+func (a *desktopApp) handleStats(w http.ResponseWriter, r *http.Request) {
+	count, _ := a.es.Stats(r.Context())
+	writeJSON(w, 200, map[string]interface{}{
+		"code":          0,
+		"es_available":  a.es.Available(),
+		"cached_count":  count,
+		"ai_available":  a.online != nil,
+	})
 }
 
 // ─── Handler：AI 配置 ─────────────────────────────────────────────────────────

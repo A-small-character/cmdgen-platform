@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cmdgen/platform/internal/domain/knowledge"
-	"github.com/cmdgen/platform/internal/infrastructure/ai"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/knowledge"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/ai"
 )
 
 // RAGService RAG检索增强生成服务

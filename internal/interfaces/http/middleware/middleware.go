@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cmdgen/platform/pkg/logger"
+	"github.com/A-small-character/cmdgen-platform/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"

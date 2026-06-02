@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cmdgen/platform/internal/domain/command"
-	"github.com/cmdgen/platform/pkg/logger"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/pkg/logger"
 	"go.uber.org/zap"
 )
 

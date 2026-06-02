@@ -11,10 +11,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/cmdgen/platform/internal/domain/knowledge"
-	"github.com/cmdgen/platform/internal/infrastructure/ai"
-	"github.com/cmdgen/platform/internal/infrastructure/vector"
-	"github.com/cmdgen/platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/knowledge"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/ai"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/vector"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
 	"gopkg.in/yaml.v3"
 )
 

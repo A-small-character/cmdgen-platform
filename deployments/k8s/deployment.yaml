@@ -102,7 +102,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: cmdgen-api
-          image: your-registry/cmdgen-platform:1.0.0
+          image: ghcr.io/a-small-character/cmdgen-platform:1.0.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -244,10 +244,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - cmdgen.yourdomain.com
+        - cmdgen.example.local
       secretName: cmdgen-tls
   rules:
-    - host: cmdgen.yourdomain.com
+    - host: cmdgen.example.local
       http:
         paths:
           - path: /

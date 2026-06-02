@@ -104,7 +104,7 @@ winget install Microsoft.VisualStudioCode
 
 ```powershell
 # 克隆项目
-git clone https://github.com/your-org/cmdgen-platform.git
+git clone https://github.com/A-small-character/cmdgen-platform.git
 cd cmdgen-platform
 
 # 复制配置文件
@@ -205,7 +205,7 @@ pluginMgr.RegisterGeneratorPlugin(&MyVendorGenerator{})
 
 ```bash
 # 1. 克隆代码
-git clone https://github.com/your-org/cmdgen-platform.git
+git clone https://github.com/A-small-character/cmdgen-platform.git
 cd cmdgen-platform
 
 # 2. 复制并配置环境变量
@@ -289,7 +289,7 @@ docker buildx create --use
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -f deployments/docker/Dockerfile \
-  -t your-registry/cmdgen-platform:1.0.0 \
+  -t ghcr.io/a-small-character/cmdgen-platform:1.0.0 \
   --push .
 ```
 
@@ -610,11 +610,11 @@ kubectl create secret generic cmdgen-secrets \
 
 ```bash
 # 修改 deployment.yaml 中的镜像地址
-sed -i "s|your-registry/cmdgen-platform:1.0.0|${REGISTRY}/cmdgen-platform:${IMAGE_TAG}|g" \
+sed -i "s|ghcr.io/a-small-character/cmdgen-platform:1.0.0|${REGISTRY}/cmdgen-platform:${IMAGE_TAG}|g" \
   deployments/k8s/deployment.yaml
 
 # 修改 Ingress 中的域名
-sed -i 's/cmdgen.yourdomain.com/cmdgen.your-actual-domain.com/g' \
+sed -i 's/cmdgen.example.local/cmdgen.your-actual-domain.com/g' \
   deployments/k8s/deployment.yaml
 
 # 部署

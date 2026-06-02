@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cmdgen/platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
 )
 
 // Manager AI提供商管理器

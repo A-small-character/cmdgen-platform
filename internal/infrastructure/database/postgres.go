@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cmdgen/platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

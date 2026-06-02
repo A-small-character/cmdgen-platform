@@ -85,10 +85,19 @@ textarea#inputBox:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,
 .cmd-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
   transition:.2s;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .cmd-card:hover{border-color:var(--border2);box-shadow:var(--shadow)}
-.cmd-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(255,255,255,.02)}
+.cmd-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(255,255,255,.02);cursor:pointer;user-select:none;transition:background .15s}
+.cmd-head:hover{background:rgba(255,255,255,.045)}
+.cmd-chevron{flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:13px;transition:transform .22s;transform:rotate(0deg)}
+.cmd-card.collapsed .cmd-chevron{transform:rotate(-90deg)}
 .cmd-num{background:var(--accent-grad);color:#fff;border-radius:10px;min-width:30px;height:30px;display:flex;
   align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0}
-.cmd-title{font-size:15px;font-weight:700;flex:1;color:var(--text)}
+.cmd-title{font-size:15px;font-weight:700;flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 折叠时隐藏代码块/说明/附加；显示一行命令预览 */
+.cmd-body{max-height:2000px;overflow:hidden;transition:max-height .28s ease}
+.cmd-card.collapsed .cmd-body{max-height:0}
+.cmd-preview{display:none;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--muted);
+  padding:0 18px 12px 52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd-card.collapsed .cmd-preview{display:block}
 .risk-badge{padding:4px 12px;border-radius:30px;font-size:12px;font-weight:700;flex-shrink:0;white-space:nowrap}
 .risk-low{background:rgba(52,211,153,.14);color:var(--green);border:1px solid rgba(52,211,153,.3)}
 .risk-medium{background:rgba(251,191,36,.14);color:var(--yellow);border:1px solid rgba(251,191,36,.3)}
@@ -190,7 +199,8 @@ pre.cmd-code::-webkit-scrollbar{height:8px}
     <div class="result-header">
       <h2>生成结果</h2>
       <span class="result-count" id="resultCount" style="display:none">0</span>
-      <button class="copy-all-btn" id="copyAllBtn" style="display:none" onclick="copyAll()">📋 复制全部</button>
+      <button class="copy-all-btn" id="toggleAllBtn" style="display:none" onclick="toggleAll()">▾ 折叠全部</button>
+      <button class="copy-all-btn" id="copyAllBtn" style="display:none;margin-left:0" onclick="copyAll()">📋 复制全部</button>
     </div>
     <div class="result-scroll" id="resultScroll">
       <div class="empty-state" id="emptyState">
@@ -283,6 +293,8 @@ function renderResult(data) {
   const cnt = document.getElementById('resultCount');
   cnt.textContent = cmds.length; cnt.style.display = cmds.length ? 'inline' : 'none';
   document.getElementById('copyAllBtn').style.display = cmds.length ? 'flex' : 'none';
+  document.getElementById('toggleAllBtn').style.display = cmds.length ? 'flex' : 'none';
+  document.getElementById('toggleAllBtn').textContent = '▾ 折叠全部';
   if (!cmds.length) {
     scroll.innerHTML = '<div class="empty-state"><div class="icon">🤷</div><div class="big">未找到匹配命令</div><div class="small">请换一种描述方式，或配置 AI Key</div></div>';
     return;
@@ -302,13 +314,22 @@ function renderResult(data) {
     let extra = '';
     if (c.backup_cmd)   extra += '<div class="cmd-extra"><span class="label">💾 备份：</span><code>' + escHtml(c.backup_cmd) + '</code></div>';
     if (c.rollback_cmd) extra += '<div class="cmd-extra"><span class="label">↩️ 回滚：</span><code>' + escHtml(c.rollback_cmd) + '</code></div>';
+    const preview = (c.command || '').split('\n')[0].slice(0, 80);
     const card = document.createElement('div');
-    card.className = 'cmd-card';
+    card.className = 'cmd-card';   // 默认展开；点击头部可折叠
     card.innerHTML =
-      '<div class="cmd-head"><span class="cmd-num">' + (i+1) + '</span><span class="cmd-title">' + escHtml(c.title||'') + '</span><span class="risk-badge ' + rc + '">' + rt + '</span></div>' +
-      '<div class="cmd-code-wrap"><span class="lang-tag">' + lang + '</span><pre class="cmd-code" id="' + cid + '">' + escHtml(c.command||'') + '</pre></div>' +
-      '<div class="cmd-foot"><span class="cmd-explain">' + escHtml(c.explanation||'') + '</span><button class="copy-btn" onclick="copyCmd(\'' + cid + '\',this)">📋 复制</button></div>' +
-      extra;
+      '<div class="cmd-head" onclick="toggleCard(this)">' +
+        '<span class="cmd-chevron">▼</span>' +
+        '<span class="cmd-num">' + (i+1) + '</span>' +
+        '<span class="cmd-title">' + escHtml(c.title||'') + '</span>' +
+        '<span class="risk-badge ' + rc + '">' + rt + '</span>' +
+      '</div>' +
+      '<div class="cmd-preview">' + escHtml(preview) + '</div>' +
+      '<div class="cmd-body">' +
+        '<div class="cmd-code-wrap"><span class="lang-tag">' + lang + '</span><pre class="cmd-code" id="' + cid + '">' + escHtml(c.command||'') + '</pre></div>' +
+        '<div class="cmd-foot"><span class="cmd-explain">' + escHtml(c.explanation||'') + '</span><button class="copy-btn" onclick="event.stopPropagation();copyCmd(\'' + cid + '\',this)">📋 复制</button></div>' +
+        extra +
+      '</div>';
     scroll.appendChild(card);
   });
   if (data.explanation) {
@@ -317,6 +338,15 @@ function renderResult(data) {
     d.innerHTML = '<strong>📖 整体说明</strong>' + escHtml(data.explanation);
     scroll.appendChild(d);
   }
+}
+function toggleCard(head) {
+  head.closest('.cmd-card').classList.toggle('collapsed');
+}
+function toggleAll() {
+  const cards = [...document.querySelectorAll('.cmd-card')];
+  const anyExpanded = cards.some(c => !c.classList.contains('collapsed'));
+  cards.forEach(c => c.classList.toggle('collapsed', anyExpanded));
+  document.getElementById('toggleAllBtn').textContent = anyExpanded ? '▸ 展开全部' : '▾ 折叠全部';
 }
 function copyCmd(id, btn) {
   const t = document.getElementById(id)?.textContent || '';

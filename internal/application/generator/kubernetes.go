@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/cmdgen/platform/internal/domain/command"
-	"github.com/cmdgen/platform/internal/infrastructure/ai"
-	"github.com/cmdgen/platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/ai"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
 )
 
 // KubernetesGenerator Kubernetes命令生成器

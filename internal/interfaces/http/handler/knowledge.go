@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cmdgen/platform/internal/application/retriever"
-	"github.com/cmdgen/platform/internal/domain/knowledge"
-	"github.com/cmdgen/platform/internal/infrastructure/webcrawler"
+	"github.com/A-small-character/cmdgen-platform/internal/application/retriever"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/knowledge"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/webcrawler"
 	"github.com/gin-gonic/gin"
 )
 

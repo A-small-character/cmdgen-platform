@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cmdgen/platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
 	"github.com/redis/go-redis/v9"
 )
 

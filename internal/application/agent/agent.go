@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cmdgen/platform/internal/application/retriever"
-	"github.com/cmdgen/platform/internal/domain/command"
-	"github.com/cmdgen/platform/internal/domain/knowledge"
-	"github.com/cmdgen/platform/internal/infrastructure/ai"
-	"github.com/cmdgen/platform/pkg/config"
-	"github.com/cmdgen/platform/pkg/logger"
+	"github.com/A-small-character/cmdgen-platform/internal/application/retriever"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/knowledge"
+	"github.com/A-small-character/cmdgen-platform/internal/infrastructure/ai"
+	"github.com/A-small-character/cmdgen-platform/pkg/config"
+	"github.com/A-small-character/cmdgen-platform/pkg/logger"
 	"go.uber.org/zap"
 )
 

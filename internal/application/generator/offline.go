@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/cmdgen/platform/internal/domain/command"
+	"github.com/A-small-character/cmdgen-platform/internal/domain/command"
 )
 
 // OfflineEngine 基于内置规则库的离线命令生成器

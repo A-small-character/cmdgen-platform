@@ -1,8 +1,8 @@
 package http
 
 import (
-	"github.com/cmdgen/platform/internal/interfaces/http/handler"
-	"github.com/cmdgen/platform/internal/interfaces/http/middleware"
+	"github.com/A-small-character/cmdgen-platform/internal/interfaces/http/handler"
+	"github.com/A-small-character/cmdgen-platform/internal/interfaces/http/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

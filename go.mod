@@ -1,4 +1,4 @@
-module github.com/cmdgen/platform
+module github.com/A-small-character/cmdgen-platform
 
 go 1.24
 
