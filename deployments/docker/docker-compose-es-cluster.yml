@@ -144,12 +144,15 @@ services:
       - es_b3_data:/usr/share/elasticsearch/data
     networks: [es-net]
 
-  # ── Kibana (可选, profile=kibana) ────────────────────────
-  kibana:
+  # ── Kibana A: 连接主集群 cmdgen-a ────────────────────────
+  kibana-a:
     image: docker.elastic.co/kibana/kibana:9.0.0
-    container_name: cmdgen-kibana
+    container_name: cmdgen-kibana-a
     environment:
+      - SERVERNAME=kibana-a
       - ELASTICSEARCH_HOSTS=http://es-a1:9200
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=cmdgenA_kibana_32bytes_secret_key_001
     ports:
       - "5601:5601"
     depends_on:
@@ -157,7 +160,23 @@ services:
         condition: service_healthy
     networks: [es-net]
     restart: unless-stopped
-    profiles: [kibana]
+
+  # ── Kibana B: 连接备集群 cmdgen-b ────────────────────────
+  kibana-b:
+    image: docker.elastic.co/kibana/kibana:9.0.0
+    container_name: cmdgen-kibana-b
+    environment:
+      - SERVERNAME=kibana-b
+      - ELASTICSEARCH_HOSTS=http://es-b1:9200
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=cmdgenB_kibana_32bytes_secret_key_002
+    ports:
+      - "5602:5601"
+    depends_on:
+      es-b1:
+        condition: service_healthy
+    networks: [es-net]
+    restart: unless-stopped
 
 volumes:
   es_a1_data:
