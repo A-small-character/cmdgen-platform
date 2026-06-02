@@ -32,22 +32,35 @@ const (
 
 // Store ES 历史知识存储
 type Store struct {
-	addr    string
-	client  *http.Client
-	enabled bool
+	addr     string
+	username string
+	password string
+	client   *http.Client
+	enabled  bool
 }
 
 // New 创建存储并探测 ES 连通性（探测失败则 enabled=false，自动降级）
-func New(addr string) *Store {
+// username/password 为空时不做认证（开发环境关闭 security 的集群）
+func New(addr, username, password string) *Store {
 	if addr == "" {
 		addr = "http://localhost:9200"
 	}
 	s := &Store{
-		addr:   strings.TrimRight(addr, "/"),
-		client: &http.Client{Timeout: 8 * time.Second},
+		addr:     strings.TrimRight(addr, "/"),
+		username: username,
+		password: password,
+		client:   &http.Client{Timeout: 8 * time.Second},
 	}
 	s.probe()
 	return s
+}
+
+// Addr 返回当前 ES 地址
+func (s *Store) Addr() string {
+	if s == nil {
+		return ""
+	}
+	return s.addr
 }
 
 func (s *Store) Available() bool { return s != nil && s.enabled }
@@ -217,6 +230,79 @@ func (s *Store) Stats(ctx context.Context) (int, error) {
 	return r.Count, nil
 }
 
+// HistoryItem 历史记录条目（用于回看列表）
+type HistoryItem struct {
+	ID         string `json:"id"`
+	Query      string `json:"query"`
+	Category   string `json:"category"`
+	Provider   string `json:"provider"`
+	HitCount   int    `json:"hit_count"`
+	CreatedAt  string `json:"created_at"`
+	ResultJSON string `json:"result_json"`
+}
+
+// ListHistory 返回历史记录列表（按时间倒序），category 为空则返回全部
+func (s *Store) ListHistory(ctx context.Context, category string, size int) ([]HistoryItem, error) {
+	if !s.enabled {
+		return nil, nil
+	}
+	if size <= 0 || size > 200 {
+		size = 50
+	}
+	var query map[string]any
+	if category != "" {
+		query = map[string]any{"term": map[string]any{"category": category}}
+	} else {
+		query = map[string]any{"match_all": map[string]any{}}
+	}
+	q := map[string]any{
+		"size":  size,
+		"query": query,
+		"sort":  []any{map[string]any{"created_at": map[string]any{"order": "desc"}}},
+	}
+	body, _ := json.Marshal(q)
+	resp, err := s.do(ctx, http.MethodPost, "/"+historyIndex+"/_search", body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list history: status %d", resp.StatusCode)
+	}
+
+	var sr struct {
+		Hits struct {
+			Hits []struct {
+				ID     string `json:"_id"`
+				Source struct {
+					QueryExact string `json:"query_exact"`
+					Category   string `json:"category"`
+					Provider   string `json:"provider"`
+					HitCount   int    `json:"hit_count"`
+					CreatedAt  string `json:"created_at"`
+					ResultJSON string `json:"result_json"`
+				} `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, err
+	}
+	items := make([]HistoryItem, 0, len(sr.Hits.Hits))
+	for _, h := range sr.Hits.Hits {
+		items = append(items, HistoryItem{
+			ID:         h.ID,
+			Query:      h.Source.QueryExact,
+			Category:   h.Source.Category,
+			Provider:   h.Source.Provider,
+			HitCount:   h.Source.HitCount,
+			CreatedAt:  h.Source.CreatedAt,
+			ResultJSON: h.Source.ResultJSON,
+		})
+	}
+	return items, nil
+}
+
 // do 执行 HTTP 请求
 func (s *Store) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	var r io.Reader
@@ -228,5 +314,8 @@ func (s *Store) do(ctx context.Context, method, path string, body []byte) (*http
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if s.username != "" {
+		req.SetBasicAuth(s.username, s.password)
+	}
 	return s.client.Do(req)
 }
