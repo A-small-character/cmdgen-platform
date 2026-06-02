@@ -1,0 +1,407 @@
+# Kubernetes 命令知识库
+# 来源: https://kubernetes.io/docs/reference/kubectl/
+# kubectl 速查: https://kubernetes.io/docs/reference/kubectl/quick-reference/
+# 版本覆盖: Kubernetes 1.28 / 1.29 / 1.30 / 1.31
+
+knowledge_items:
+
+  - title: "kubectl 基础操作速查"
+    type: kubernetes
+    tags: [kubectl, get, describe, apply, delete, create]
+    source: "Kubernetes 官方文档 - kubectl Quick Reference"
+    source_url: "https://kubernetes.io/docs/reference/kubectl/quick-reference/"
+    content: |
+      # kubectl 基础操作
+      # 官方文档: https://kubernetes.io/docs/reference/kubectl/quick-reference/
+
+      ## 查看资源（get）
+      kubectl get pods                              # 当前命名空间的 Pod
+      kubectl get pods -n kube-system              # 指定命名空间
+      kubectl get pods -A                           # 所有命名空间（-A = --all-namespaces）
+      kubectl get pods -o wide                      # 显示节点IP等额外信息
+      kubectl get pods -o yaml                      # YAML 格式输出
+      kubectl get pods -o json                      # JSON 格式输出
+      kubectl get pods --show-labels                # 显示标签
+      kubectl get pods -l app=nginx                 # 按标签过滤
+      kubectl get pods -w                           # 实时监听变化（-w/--watch）
+      kubectl get all -n myapp                      # 命名空间下所有资源
+
+      ## 常用资源缩写
+      kubectl get po    # pods
+      kubectl get svc   # services
+      kubectl get deploy # deployments
+      kubectl get ds    # daemonsets
+      kubectl get sts   # statefulsets
+      kubectl get cm    # configmaps
+      kubectl get secret
+      kubectl get pv    # persistentvolumes
+      kubectl get pvc   # persistentvolumeclaims
+      kubectl get hpa   # horizontalpodautoscalers
+      kubectl get ing   # ingresses
+      kubectl get ns    # namespaces
+      kubectl get no    # nodes
+
+      ## 查看详情（describe）
+      kubectl describe pod my-pod -n myapp
+      kubectl describe node node-1
+      kubectl describe service my-svc -n myapp
+
+      ## 创建/应用资源（apply）
+      kubectl apply -f deployment.yaml              # 创建或更新
+      kubectl apply -f ./manifests/                 # 应用目录下所有 yaml
+      kubectl apply -f https://k8s.io/examples/nginx.yaml  # 从URL
+
+      ## 删除资源
+      kubectl delete pod my-pod -n myapp
+      kubectl delete -f deployment.yaml             # 按文件删除
+      kubectl delete pod --all -n myapp             # 删除命名空间下所有pod
+      kubectl delete pod my-pod --grace-period=0 --force  # 强制删除（stuck pod）
+
+      ## 命名空间操作
+      kubectl create namespace myapp
+      kubectl config set-context --current --namespace=myapp  # 切换默认命名空间
+
+  - title: "Pod 日志与调试"
+    type: kubernetes
+    tags: [logs, exec, port-forward, debug, troubleshoot]
+    source: "Kubernetes 官方文档 - kubectl logs"
+    source_url: "https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/"
+    content: |
+      # Pod 调试与排障
+      # 官方文档: https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/
+
+      ## 查看日志（kubectl logs）
+      kubectl logs my-pod -n myapp                          # 当前日志
+      kubectl logs my-pod -n myapp -f                       # 实时跟踪
+      kubectl logs my-pod -n myapp --tail=100               # 最后100行
+      kubectl logs my-pod -n myapp --since=1h               # 最近1小时
+      kubectl logs my-pod -n myapp --since-time="2024-01-01T00:00:00Z"
+      kubectl logs my-pod -n myapp -c my-container          # 多容器Pod指定容器
+      kubectl logs -l app=nginx -n myapp --all-containers   # 按标签所有Pod日志
+      kubectl logs my-pod -n myapp --previous               # 上一次崩溃的日志
+
+      ## 进入 Pod 内部（kubectl exec）
+      kubectl exec -it my-pod -n myapp -- /bin/bash
+      kubectl exec -it my-pod -n myapp -- /bin/sh           # 无bash时
+      kubectl exec my-pod -n myapp -- cat /app/config.yaml  # 非交互执行
+      kubectl exec -it my-pod -n myapp -c my-container -- bash  # 指定容器
+
+      ## 端口转发（本地调试）
+      kubectl port-forward pod/my-pod 8080:8080 -n myapp
+      kubectl port-forward svc/my-service 8080:80 -n myapp  # 转发到 Service
+      kubectl port-forward deploy/my-deploy 8080:8080 -n myapp
+
+      ## 临时调试容器（Kubernetes 1.25+ ephemeral container）
+      kubectl debug -it my-pod --image=busybox --target=my-container -n myapp
+
+      ## 复制文件
+      kubectl cp my-pod:/app/log.txt ./log.txt -n myapp
+      kubectl cp ./config.yaml my-pod:/app/ -n myapp
+
+      ## 查看事件（重要排障命令）
+      kubectl get events -n myapp --sort-by='.lastTimestamp'
+      kubectl get events -n myapp -w                         # 实时监听
+      kubectl describe pod my-pod -n myapp                   # Events 在 describe 末尾
+
+  - title: "Deployment 管理"
+    type: kubernetes
+    tags: [deployment, rollout, scale, update, rollback, strategy]
+    source: "Kubernetes 官方文档 - Deployments"
+    source_url: "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    content: |
+      # Deployment 管理
+      # 官方文档: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+      ## 基础操作
+      kubectl get deployments -n myapp
+      kubectl describe deployment my-deploy -n myapp
+
+      ## 扩缩容（Scale）
+      kubectl scale deployment my-deploy --replicas=3 -n myapp
+      kubectl scale deployment/my-deploy --replicas=0 -n myapp  # 缩到0（暂停）
+
+      ## 滚动更新镜像
+      kubectl set image deployment/my-deploy \
+        my-container=myregistry/myapp:2.0.0 -n myapp
+
+      ## 滚动重启（不更改镜像，触发 pod 重建）
+      # Kubernetes 1.15+
+      kubectl rollout restart deployment/my-deploy -n myapp
+
+      ## 查看滚动更新状态
+      kubectl rollout status deployment/my-deploy -n myapp
+      kubectl rollout history deployment/my-deploy -n myapp           # 版本历史
+      kubectl rollout history deployment/my-deploy --revision=2 -n myapp  # 指定版本详情
+
+      ## 回滚
+      kubectl rollout undo deployment/my-deploy -n myapp              # 回滚到上一版
+      kubectl rollout undo deployment/my-deploy --to-revision=2 -n myapp  # 回滚到指定版本
+
+      ## 暂停/恢复滚动更新
+      kubectl rollout pause deployment/my-deploy -n myapp
+      kubectl rollout resume deployment/my-deploy -n myapp
+
+      ## Deployment YAML 关键配置
+      # 官方示例: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#creating-a-deployment
+      #
+      # spec:
+      #   replicas: 3
+      #   strategy:
+      #     type: RollingUpdate       # 或 Recreate
+      #     rollingUpdate:
+      #       maxSurge: 1             # 最多额外创建1个Pod
+      #       maxUnavailable: 0       # 更新期间最少保证0个不可用（保证无损）
+      #   minReadySeconds: 10         # Pod Ready后再等10秒才继续
+      #   revisionHistoryLimit: 5     # 保留5个历史版本（用于回滚）
+
+  - title: "节点管理 - 维护与排障"
+    type: kubernetes
+    tags: [node, cordon, drain, taint, label, resource]
+    source: "Kubernetes 官方文档 - Node management"
+    source_url: "https://kubernetes.io/docs/concepts/architecture/nodes/"
+    content: |
+      # 节点管理
+      # 官方文档: https://kubernetes.io/docs/concepts/architecture/nodes/
+
+      ## 查看节点
+      kubectl get nodes
+      kubectl get nodes -o wide                       # 含IP、OS、内核版本
+      kubectl describe node node-1
+      kubectl top nodes                               # 节点资源使用（需 metrics-server）
+
+      ## 节点维护（驱逐并停止调度）
+      # Step 1: 标记节点不可调度（新 Pod 不会再调度到此节点）
+      kubectl cordon node-1
+      # Step 2: 驱逐节点上所有 Pod（迁移到其他节点）
+      kubectl drain node-1 \
+        --ignore-daemonsets \
+        --delete-emptydir-data \
+        --force
+      # --ignore-daemonsets: 忽略 DaemonSet 管理的 Pod
+      # --delete-emptydir-data: 删除使用 emptyDir 的 Pod（数据会丢失）
+      # --force: 强制驱逐非控制器管理的 Pod
+
+      # Step 3: 维护完成后恢复调度
+      kubectl uncordon node-1
+
+      ## 污点管理（Taint）
+      # 给节点添加污点（NoSchedule: 不调度到此节点）
+      kubectl taint nodes node-1 key=value:NoSchedule
+      kubectl taint nodes node-1 key=value:NoExecute   # 驱逐已有 Pod
+      kubectl taint nodes node-1 key=value:PreferNoSchedule  # 尽量不调度
+      # 移除污点（末尾加 -）
+      kubectl taint nodes node-1 key=value:NoSchedule-
+
+      ## 标签管理
+      kubectl label node node-1 disk=ssd
+      kubectl label node node-1 disk=ssd --overwrite   # 覆盖已有标签
+      kubectl label node node-1 disk-                  # 删除标签
+      kubectl get nodes -l disk=ssd
+
+  - title: "ConfigMap 和 Secret"
+    type: kubernetes
+    tags: [configmap, secret, env, volume, config]
+    source: "Kubernetes 官方文档 - ConfigMaps"
+    source_url: "https://kubernetes.io/docs/concepts/configuration/configmap/"
+    content: |
+      # ConfigMap 和 Secret
+      # ConfigMap: https://kubernetes.io/docs/concepts/configuration/configmap/
+      # Secret: https://kubernetes.io/docs/concepts/configuration/secret/
+
+      ## 创建 ConfigMap
+      kubectl create configmap my-config \
+        --from-literal=APP_ENV=production \
+        --from-literal=APP_PORT=8080
+      kubectl create configmap my-config --from-file=config.yaml
+      kubectl create configmap my-config --from-env-file=.env
+
+      ## 创建 Secret
+      kubectl create secret generic my-secret \
+        --from-literal=username=admin \
+        --from-literal=password=secret123
+      kubectl create secret docker-registry regcred \
+        --docker-server=registry.example.com \
+        --docker-username=admin \
+        --docker-password=secret
+
+      ## 查看
+      kubectl get configmap my-config -o yaml -n myapp
+      kubectl describe secret my-secret -n myapp
+      kubectl get secret my-secret -o jsonpath='{.data.password}' | base64 --decode
+
+      ## 在 Pod 中使用（YAML 示例）
+      # 方式1: 环境变量引用
+      # env:
+      # - name: APP_ENV
+      #   valueFrom:
+      #     configMapKeyRef:
+      #       name: my-config
+      #       key: APP_ENV
+      # - name: DB_PASSWORD
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: password
+      #
+      # 方式2: 全部注入为环境变量
+      # envFrom:
+      # - configMapRef:
+      #     name: my-config
+      # - secretRef:
+      #     name: my-secret
+      #
+      # 方式3: 挂载为文件
+      # volumes:
+      # - name: config-vol
+      #   configMap:
+      #     name: my-config
+      # volumeMounts:
+      # - name: config-vol
+      #   mountPath: /etc/config
+
+  - title: "HPA 水平自动扩缩容"
+    type: kubernetes
+    tags: [hpa, autoscaling, cpu, memory, metrics-server]
+    source: "Kubernetes 官方文档 - HPA"
+    source_url: "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/"
+    content: |
+      # 水平 Pod 自动扩缩容（HPA）
+      # 官方文档: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+      # 前提条件: 需安装 metrics-server
+
+      ## 创建 HPA（命令行方式）
+      kubectl autoscale deployment my-deploy \
+        --min=2 --max=10 --cpu-percent=70 \
+        -n myapp
+
+      ## 创建 HPA（YAML 方式，Kubernetes 1.23+ autoscaling/v2）
+      # apiVersion: autoscaling/v2
+      # kind: HorizontalPodAutoscaler
+      # metadata:
+      #   name: my-deploy-hpa
+      #   namespace: myapp
+      # spec:
+      #   scaleTargetRef:
+      #     apiVersion: apps/v1
+      #     kind: Deployment
+      #     name: my-deploy
+      #   minReplicas: 2
+      #   maxReplicas: 10
+      #   metrics:
+      #   - type: Resource
+      #     resource:
+      #       name: cpu
+      #       target:
+      #         type: Utilization
+      #         averageUtilization: 70
+      #   - type: Resource
+      #     resource:
+      #       name: memory
+      #       target:
+      #         type: Utilization
+      #         averageUtilization: 80
+
+      ## 查看 HPA 状态
+      kubectl get hpa -n myapp
+      kubectl describe hpa my-deploy-hpa -n myapp
+
+      ## 安装 metrics-server
+      kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      kubectl top pods -n myapp
+      kubectl top nodes
+
+  - title: "RBAC 权限管理"
+    type: kubernetes
+    tags: [rbac, role, clusterrole, rolebinding, serviceaccount]
+    source: "Kubernetes 官方文档 - RBAC"
+    source_url: "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
+    content: |
+      # RBAC 权限管理
+      # 官方文档: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+      ## 创建 ServiceAccount
+      kubectl create serviceaccount my-sa -n myapp
+
+      ## 创建 Role（命名空间级别权限）
+      # kubectl create role pod-reader \
+      #   --verb=get,list,watch \
+      #   --resource=pods \
+      #   -n myapp
+
+      ## Role YAML 示例
+      # apiVersion: rbac.authorization.k8s.io/v1
+      # kind: Role
+      # metadata:
+      #   name: pod-reader
+      #   namespace: myapp
+      # rules:
+      # - apiGroups: [""]
+      #   resources: ["pods", "pods/log"]
+      #   verbs: ["get", "list", "watch"]
+      # - apiGroups: ["apps"]
+      #   resources: ["deployments"]
+      #   verbs: ["get", "list", "watch", "update", "patch"]
+
+      ## 绑定 Role 到 ServiceAccount
+      kubectl create rolebinding my-sa-binding \
+        --role=pod-reader \
+        --serviceaccount=myapp:my-sa \
+        -n myapp
+
+      ## 查看权限
+      kubectl auth can-i get pods -n myapp --as=system:serviceaccount:myapp:my-sa
+      kubectl auth can-i '*' '*' -n myapp  # 查看是否有全部权限
+
+      ## ClusterRole（集群级别，如 node/persistentvolume）
+      kubectl create clusterrole node-reader \
+        --verb=get,list,watch \
+        --resource=nodes
+
+  - title: "存储 - PV / PVC / StorageClass"
+    type: kubernetes
+    tags: [pv, pvc, storageclass, storage, volume, persistent]
+    source: "Kubernetes 官方文档 - Storage"
+    source_url: "https://kubernetes.io/docs/concepts/storage/persistent-volumes/"
+    content: |
+      # Kubernetes 持久化存储
+      # 官方文档: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+      ## StorageClass（动态供应，推荐）
+      kubectl get storageclass
+      kubectl get sc                              # 缩写
+
+      ## PVC YAML 示例（动态供应）
+      # apiVersion: v1
+      # kind: PersistentVolumeClaim
+      # metadata:
+      #   name: my-pvc
+      #   namespace: myapp
+      # spec:
+      #   accessModes:
+      #     - ReadWriteOnce          # RWO: 单节点读写；RWX: 多节点读写；ROX: 多节点只读
+      #   storageClassName: standard
+      #   resources:
+      #     requests:
+      #       storage: 10Gi
+
+      ## PV YAML 示例（静态供应，手动创建）
+      # apiVersion: v1
+      # kind: PersistentVolume
+      # metadata:
+      #   name: my-pv
+      # spec:
+      #   capacity:
+      #     storage: 10Gi
+      #   accessModes: [ReadWriteOnce]
+      #   persistentVolumeReclaimPolicy: Retain  # Retain/Delete/Recycle
+      #   hostPath:
+      #     path: /data/myapp        # 仅适合单节点开发环境
+
+      ## 查看 PV/PVC
+      kubectl get pv
+      kubectl get pvc -n myapp
+      kubectl describe pvc my-pvc -n myapp
+
+      ## 扩容 PVC（StorageClass 需支持 allowVolumeExpansion: true）
+      kubectl patch pvc my-pvc -n myapp \
+        -p '{"spec": {"resources": {"requests": {"storage": "20Gi"}}}}'

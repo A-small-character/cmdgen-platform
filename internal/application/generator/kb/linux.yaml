@@ -1,0 +1,729 @@
+# Linux 命令知识库
+# 来源: https://man7.org/linux/man-pages/  https://access.redhat.com/documentation  https://ubuntu.com/server/docs
+# 版本覆盖: RHEL/CentOS 6/7/8/9, Rocky Linux, AlmaLinux, Ubuntu 18/20/22/24, Debian 10/11/12, Amazon Linux 2/2023
+
+knowledge_items:
+
+  # ══════════════════════════════════════════════════════
+  # 文件查找
+  # ══════════════════════════════════════════════════════
+
+  - title: "find - 按时间和大小查找文件"
+    type: linux
+    tags: [find, file, size, mtime, log, cleanup]
+    source: "GNU findutils 4.9 手册"
+    source_url: "https://www.gnu.org/software/findutils/manual/html_mono/find.html"
+    content: |
+      # find 按修改时间和大小查找文件
+      # 参考: https://man7.org/linux/man-pages/man1/find.1.html
+
+      ## 查找7天前大于1GB的文件（只列出，不删除）
+      find /var/log -type f -mtime +7 -size +1G
+
+      ## 查找并显示文件大小和时间
+      find /var/log -type f -mtime +7 -size +1G -ls
+
+      ## 查找并用 exec 执行命令（显示每个文件详情）
+      find /var/log -type f -mtime +7 -size +1G -exec ls -lh {} \;
+
+      ## 查找并删除（先确认列表再加 -delete）
+      find /var/log -type f -mtime +7 -size +1G -delete
+
+      ## 时间参数说明（man find）
+      # -mtime +N  修改时间超过 N*24小时（即 N 天前）
+      # -mtime -N  修改时间在最近 N 天以内
+      # -mtime  N  修改时间恰好在 N 天前（精确到24小时）
+      # -mmin  +N  修改时间超过 N 分钟
+
+      ## 大小参数说明
+      # -size +1G  大于1 GiB（findutils >= 4.2.15 支持 G 后缀）
+      # -size +1M  大于1 MiB
+      # -size +512k 大于512 KiB
+      # -size +1c  大于1字节（c=bytes）
+
+      ## 文件类型参数
+      # -type f  普通文件
+      # -type d  目录
+      # -type l  符号链接
+
+      ## 其他实用示例
+      # 查找当前目录最大的20个文件
+      find . -type f -printf '%s %p\n' | sort -rn | head -20
+
+      # 查找最近1天内修改的 .conf 文件
+      find /etc -type f -name "*.conf" -mtime -1
+
+      # 查找空文件
+      find /var/log -type f -empty
+
+      # 统计目录下文件数量
+      find /var/log -type f | wc -l
+
+  - title: "grep - 文本搜索"
+    type: linux
+    tags: [grep, search, pattern, regex, log]
+    source: "GNU grep 3.x 手册"
+    source_url: "https://www.gnu.org/software/grep/manual/grep.html"
+    content: |
+      # grep 文本搜索命令
+      # 参考: https://man7.org/linux/man-pages/man1/grep.1.html
+
+      ## 基本搜索
+      grep "ERROR" /var/log/messages
+      grep "ERROR" /var/log/messages /var/log/syslog   # 多文件
+
+      ## 常用选项
+      grep -i "error" /var/log/messages          # -i 忽略大小写
+      grep -n "error" /var/log/messages          # -n 显示行号
+      grep -c "error" /var/log/messages          # -c 只显示匹配行数
+      grep -v "DEBUG" /var/log/messages          # -v 反向匹配（不含该模式的行）
+      grep -r "error" /var/log/                  # -r 递归搜索目录
+      grep -l "error" /var/log/*.log             # -l 只列出含匹配的文件名
+      grep -w "error" /var/log/messages          # -w 全词匹配
+      grep -A 3 "error" /var/log/messages        # -A N 显示匹配行及后 N 行
+      grep -B 3 "error" /var/log/messages        # -B N 显示匹配行及前 N 行
+      grep -C 3 "error" /var/log/messages        # -C N 前后各 N 行（等同 -A N -B N）
+
+      ## 扩展正则（-E 或 egrep）
+      grep -E "ERROR|WARN|FATAL" /var/log/messages
+      grep -E "^[0-9]{4}-[0-9]{2}" /var/log/app.log  # 匹配日期格式开头
+
+      ## 统计日志中各级别数量
+      grep -c "ERROR" /var/log/app.log
+      grep -c "WARN"  /var/log/app.log
+
+      ## 搜索压缩日志
+      zgrep "error" /var/log/messages.gz
+      bzgrep "error" /var/log/messages.bz2
+
+  - title: "sed - 流编辑器（文件内容修改）"
+    type: linux
+    tags: [sed, edit, replace, config, file]
+    source: "GNU sed 4.x 手册"
+    source_url: "https://www.gnu.org/software/sed/manual/sed.html"
+    content: |
+      # sed 流编辑器
+      # 参考: https://man7.org/linux/man-pages/man1/sed.1.html
+
+      ## 替换（不修改原文件，输出到屏幕）
+      sed 's/old/new/' file.txt           # 每行第1次出现
+      sed 's/old/new/g' file.txt          # 每行所有出现（g=global）
+      sed 's/old/new/gi' file.txt         # 忽略大小写
+
+      ## 原地修改文件（-i）
+      sed -i 's/old/new/g' file.txt
+
+      ## 原地修改并备份（-i.bak 或 -i.$(date +%Y%m%d)）
+      sed -i.bak 's/old/new/g' file.txt
+      sed -i.$(date +%Y%m%d_%H%M%S).bak 's/old/new/g' file.txt
+
+      ## 修改 sshd_config 端口（官方推荐方式）
+      # 备份
+      cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.$(date +%Y%m%d_%H%M%S).bak
+      # 将 Port 22（含注释行 #Port 22）改为 Port 2222
+      sed -i 's/^#\?Port [0-9]\+/Port 2222/' /etc/ssh/sshd_config
+      # 验证
+      grep '^Port' /etc/ssh/sshd_config
+
+      ## 删除行
+      sed -i '/^#/d' file.conf             # 删除所有注释行（以#开头）
+      sed -i '/^$/d' file.conf             # 删除所有空行
+      sed -i '5d' file.txt                 # 删除第5行
+      sed -i '5,10d' file.txt              # 删除第5到10行
+
+      ## 在指定行后插入内容
+      sed -i '/\[Service\]/a After=network-online.target' /etc/systemd/system/myapp.service
+
+      ## 打印指定行
+      sed -n '10,20p' file.txt             # 打印第10到20行
+      sed -n '/ERROR/,/END/p' file.log     # 打印 ERROR 到 END 之间的行
+
+  - title: "awk - 文本处理"
+    type: linux
+    tags: [awk, text, column, process, log]
+    source: "GNU awk (gawk) 5.x 手册"
+    source_url: "https://www.gnu.org/software/gawk/manual/gawk.html"
+    content: |
+      # awk 文本处理工具
+      # 参考: https://man7.org/linux/man-pages/man1/awk.1p.html
+
+      ## 基本用法：按列提取
+      awk '{print $1}' file.txt            # 打印第1列
+      awk '{print $1, $3}' file.txt        # 打印第1列和第3列
+      awk 'NR==5{print}' file.txt          # 打印第5行（NR=行号）
+      awk 'NR>=5 && NR<=10{print}' file.txt # 打印第5到10行
+
+      ## 指定分隔符（-F）
+      awk -F: '{print $1}' /etc/passwd     # 以:分隔，打印用户名
+      awk -F, '{print $2}' data.csv        # CSV第2列
+      awk -F'\t' '{print $3}' data.tsv     # TSV第3列
+
+      ## 条件过滤
+      awk '$3 > 100 {print}' file.txt      # 第3列大于100的行
+      awk '/ERROR/{print}' app.log         # 包含 ERROR 的行
+      awk '!/DEBUG/{print}' app.log        # 不含 DEBUG 的行
+
+      ## 统计
+      awk '{sum+=$1} END{print sum}' numbers.txt          # 求和
+      awk 'END{print NR}' file.txt                        # 统计行数
+      awk '{count[$1]++} END{for(k in count) print k, count[k]}' file.txt  # 按第1列计数
+
+      ## 处理 /etc/passwd 提取系统用户
+      awk -F: '$3 >= 1000 {print $1, $3, $7}' /etc/passwd
+
+      ## 处理日志：统计HTTP状态码
+      awk '{print $9}' /var/log/nginx/access.log | sort | uniq -c | sort -rn
+
+  - title: "磁盘空间管理 - df / du / lsblk"
+    type: linux
+    tags: [df, du, lsblk, disk, space, storage]
+    source: "util-linux, GNU coreutils 手册"
+    source_url: "https://man7.org/linux/man-pages/man1/df.1.html"
+    content: |
+      # 磁盘空间查看与管理
+      # 参考: https://man7.org/linux/man-pages/man1/df.1.html
+      #       https://man7.org/linux/man-pages/man1/du.1.html
+
+      ## df - 查看文件系统磁盘使用情况
+      df -h                                # 以人类可读格式显示所有挂载点
+      df -hT                               # 同上，额外显示文件系统类型（ext4/xfs/tmpfs等）
+      df -h /var                           # 只看指定目录所在分区
+      df -h --total                        # 最后一行显示所有分区合计
+      df -i                                # 显示 inode 使用情况（inode满会导致"No space left"错误）
+
+      ## du - 查看目录实际占用空间
+      du -sh /var/log                      # 查看 /var/log 目录总大小（-s汇总 -h可读）
+      du -sh /var/log/*                    # 查看该目录下每个子目录/文件的大小
+      du -h --max-depth=1 /var             # 限制深度为1层（只看直接子目录）
+      du -h --max-depth=2 / 2>/dev/null | sort -rh | head -20  # 找最大的目录
+
+      ## 找出占用空间最多的目录（推荐方式）
+      du -h --max-depth=1 /var | sort -rh | head -10
+
+      ## lsblk - 查看块设备（磁盘和分区）
+      lsblk                                # 树形显示所有块设备
+      lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID  # 显示更多列信息
+      lsblk -f                             # 显示文件系统类型和 UUID
+
+      ## 查看磁盘分区详情
+      fdisk -l /dev/sda                    # 查看 /dev/sda 的分区表（需 root）
+      parted -l                            # 查看所有磁盘分区（支持 GPT）
+
+      ## 清理磁盘空间常用命令
+      # 清理 journald 日志（保留最近7天）
+      journalctl --vacuum-time=7d
+      # 清理旧内核（RHEL/CentOS）
+      package-cleanup --oldkernels --count=2   # yum-utils
+      # 清空指定日志文件（不删除文件，仅清空内容）
+      > /var/log/messages
+      cat /dev/null > /var/log/messages
+
+  - title: "系统服务管理 - systemctl"
+    type: linux
+    tags: [systemctl, systemd, service, unit, journal]
+    source: "systemd 252 官方文档"
+    source_url: "https://www.freedesktop.org/software/systemd/man/systemctl.html"
+    content: |
+      # systemctl 服务管理（systemd）
+      # 参考: https://www.freedesktop.org/software/systemd/man/systemctl.html
+      # 适用: RHEL/CentOS 7+, Ubuntu 16.04+, Debian 9+
+
+      ## 基础服务操作
+      systemctl start nginx              # 启动服务
+      systemctl stop nginx               # 停止服务
+      systemctl restart nginx            # 重启服务（先stop再start，会中断连接）
+      systemctl reload nginx             # 重载配置（不中断连接，nginx/apache支持）
+      systemctl reload-or-restart nginx  # 优先reload，不支持则restart
+
+      ## 查看服务状态
+      systemctl status nginx             # 显示状态、最近日志、PID
+      systemctl is-active nginx          # 输出 active 或 inactive（适合脚本判断）
+      systemctl is-enabled nginx         # 输出 enabled 或 disabled
+      systemctl is-failed nginx          # 判断是否处于失败状态
+
+      ## 开机自启控制
+      systemctl enable nginx             # 设置开机自启
+      systemctl enable --now nginx       # 设置开机自启并立即启动
+      systemctl disable nginx            # 禁用开机自启
+      systemctl disable --now nginx      # 禁用并立即停止
+      systemctl mask nginx               # 彻底屏蔽（无法启动，强于disable）
+      systemctl unmask nginx             # 解除屏蔽
+
+      ## 列出服务
+      systemctl list-units --type=service --state=running   # 所有运行中的服务
+      systemctl list-units --type=service --state=failed    # 所有失败的服务
+      systemctl list-unit-files --type=service               # 所有服务的启用状态
+
+      ## 重载 systemd 配置（修改 .service 文件后必须执行）
+      systemctl daemon-reload
+
+      ## journalctl 查看日志
+      journalctl -u nginx                        # 查看 nginx 全部日志
+      journalctl -u nginx -f                     # 实时跟踪 nginx 日志
+      journalctl -u nginx --since today           # 今天的日志
+      journalctl -u nginx -n 100 --no-pager       # 最近100行
+      journalctl -u nginx --since "2024-01-01" --until "2024-01-02"
+      journalctl -p err -u nginx                  # 只看错误级别
+      journalctl --disk-usage                     # 查看日志磁盘占用
+      journalctl --vacuum-time=7d                 # 保留最近7天日志
+
+      ## RHEL/CentOS 6 旧版（SysV init，使用 service 命令）
+      service nginx start
+      service nginx status
+      chkconfig nginx on                          # 设置开机自启
+
+  - title: "用户和权限管理"
+    type: linux
+    tags: [useradd, passwd, chmod, chown, sudo, user, permission]
+    source: "Linux man-pages, shadow-utils"
+    source_url: "https://man7.org/linux/man-pages/man8/useradd.8.html"
+    content: |
+      # Linux 用户和权限管理
+      # 参考: https://man7.org/linux/man-pages/man8/useradd.8.html
+
+      ## 用户管理
+      useradd -m -s /bin/bash -G wheel appuser    # 创建用户，建home目录，bash shell，加入wheel组
+      useradd -r -s /sbin/nologin -M svcuser       # 创建系统账号（-r），无home目录，无法登录
+      passwd appuser                               # 设置/修改密码（交互式）
+      echo "appuser:NewPass123!" | chpasswd        # 非交互设置密码
+      usermod -aG docker appuser                   # 将用户追加到 docker 组（-a=append 必须配合-G使用）
+      usermod -s /bin/bash appuser                 # 修改 shell
+      userdel -r appuser                           # 删除用户及其 home 目录（-r）
+
+      ## 查看用户和组
+      id appuser                                   # 查看用户UID/GID和所属组
+      groups appuser                               # 查看用户所属组
+      getent passwd appuser                        # 查看用户详细信息
+      getent group docker                          # 查看组成员
+      cat /etc/passwd | grep appuser
+      cat /etc/group  | grep docker
+
+      ## 文件权限（chmod）
+      chmod 755 /app/script.sh         # rwxr-xr-x（所有者rwx，组r-x，其他r-x）
+      chmod 644 /etc/app.conf          # rw-r--r--（所有者rw，组r，其他r）
+      chmod 600 ~/.ssh/id_rsa          # rw-------（仅所有者可读写，私钥必须）
+      chmod 700 ~/.ssh                  # rwx------（仅所有者可操作，.ssh目录必须）
+      chmod +x script.sh               # 给所有人加可执行权限
+      chmod u+x,g-w script.sh          # 给所有者加执行，去掉组的写权限
+      chmod -R 755 /var/www/html        # 递归修改目录及所有内容
+
+      ## 文件所有权（chown）
+      chown appuser:appgroup /app       # 修改所有者和组
+      chown -R nginx:nginx /var/www     # 递归修改
+      chown appuser file.txt            # 只改所有者
+
+      ## sudo 配置（/etc/sudoers，推荐用 visudo 编辑）
+      # 允许 appuser 无密码执行所有命令（不推荐生产使用）
+      appuser ALL=(ALL) NOPASSWD: ALL
+      # 允许 appuser 无密码重启 nginx
+      appuser ALL=(ALL) NOPASSWD: /bin/systemctl restart nginx
+      # 允许 devops 组执行所有命令
+      %devops ALL=(ALL) ALL
+
+  - title: "进程管理 - ps / kill / top"
+    type: linux
+    tags: [ps, kill, top, process, pid, signal]
+    source: "procps-ng 手册, kill(1)"
+    source_url: "https://man7.org/linux/man-pages/man1/ps.1.html"
+    content: |
+      # 进程管理
+      # 参考: https://man7.org/linux/man-pages/man1/ps.1.html
+      #       https://man7.org/linux/man-pages/man1/kill.1.html
+
+      ## ps - 查看进程
+      ps aux                               # 显示所有进程（BSD格式）
+      ps aux --sort=-%cpu | head -20       # 按CPU使用率降序，取前20
+      ps aux --sort=-%mem | head -20       # 按内存使用率降序
+      ps -ef                               # 显示所有进程（System V格式，含PPID）
+      ps -ef | grep nginx                  # 查找 nginx 进程
+      ps -p 1234 -o pid,ppid,cmd,%cpu,%mem # 查看指定PID的详细信息
+      pgrep -a nginx                       # 查找进程名并显示完整命令
+      pgrep -u root                        # 查找 root 用户的所有进程
+
+      ## kill - 发送信号
+      kill -15 <PID>     # SIGTERM：请求进程优雅退出（允许清理资源），默认信号
+      kill -9  <PID>     # SIGKILL：强制立即终止（不可忽略，无清理）
+      kill -1  <PID>     # SIGHUP：重新读取配置（nginx/apache/sshd 支持）
+      kill -0  <PID>     # 测试进程是否存在（不发送实际信号）
+
+      # 按名称终止（pkill/killall）
+      pkill -15 nginx                      # 按进程名发送 SIGTERM
+      pkill -9 nginx                       # 强制终止
+      killall -9 nginx                     # 终止所有同名进程
+
+      ## top - 实时进程监控（交互命令）
+      # M 按内存排序  P 按CPU排序  k 输入PID后发kill信号
+      # 1 显示每个CPU核  q 退出  h 帮助
+      top -bn1 | head -20                  # 非交互模式，输出一次
+
+      ## lsof - 查看文件/端口被哪个进程占用
+      lsof -i :80                          # 查看占用80端口的进程
+      lsof -i :80 -i :443                  # 同时查看80和443
+      lsof -p 1234                         # 查看PID 1234打开的所有文件
+      lsof -u nginx                        # 查看 nginx 用户打开的文件
+      lsof +D /var/log                     # 查看 /var/log 下被打开的文件（找删除后占空间的日志）
+
+  - title: "网络管理 - ip / ss / tcpdump"
+    type: linux
+    tags: [ip, ss, netstat, tcpdump, network, port, route]
+    source: "iproute2, ss(8), tcpdump 手册"
+    source_url: "https://man7.org/linux/man-pages/man8/ss.8.html"
+    content: |
+      # Linux 网络管理
+      # 参考: https://man7.org/linux/man-pages/man8/ss.8.html
+      #       https://www.tcpdump.org/manpages/tcpdump.1.html
+
+      ## ss - 套接字统计（推荐，替代 netstat）
+      ss -tlnp                    # 所有 TCP 监听端口（-t TCP -l 监听 -n 数字 -p 进程）
+      ss -ulnp                    # UDP 监听端口
+      ss -tlnp | grep ':80'       # 查看80端口
+      ss -tn state established    # 所有已建立的TCP连接
+      ss -tn state time-wait      # TIME_WAIT 状态连接数
+      ss -s                       # 连接状态汇总统计
+      ss -4 -tlnp                 # 只显示 IPv4
+      ss -6 -tlnp                 # 只显示 IPv6
+
+      ## netstat（旧版系统，net-tools 包）
+      netstat -tlnp               # 同 ss -tlnp
+      netstat -an | grep ':80'
+
+      ## ip - 地址和路由管理（iproute2）
+      ip addr show                         # 查看所有网卡地址
+      ip addr show eth0                    # 查看指定网卡
+      ip -br addr show                     # 简洁格式
+      ip route show                        # 查看路由表
+      ip route show default                # 查看默认路由
+      ip neigh show                        # 查看 ARP 表
+      ip link show                         # 查看网卡状态
+
+      ## 临时配置（重启后失效）
+      ip addr add 192.168.1.100/24 dev eth0        # 添加IP
+      ip addr del 192.168.1.100/24 dev eth0        # 删除IP
+      ip route add 10.0.0.0/8 via 192.168.1.1      # 添加静态路由
+      ip route del 10.0.0.0/8                       # 删除路由
+      ip link set eth0 up                            # 启用网卡
+      ip link set eth0 down                          # 禁用网卡
+
+      ## 永久配置（RHEL/CentOS 7/8 NetworkManager）
+      nmcli connection show
+      nmcli connection modify eth0 ipv4.addresses 192.168.1.100/24
+      nmcli connection modify eth0 ipv4.gateway 192.168.1.1
+      nmcli connection up eth0
+
+      ## tcpdump - 抓包
+      tcpdump -i eth0                              # 抓取 eth0 所有包
+      tcpdump -i eth0 port 80 -n                   # 抓取80端口，-n不解析主机名
+      tcpdump -i eth0 host 192.168.1.100           # 抓取指定主机的包
+      tcpdump -i eth0 -w /tmp/capture.pcap         # 抓包保存到文件
+      tcpdump -i eth0 -n -c 100 port 443           # 抓100个包后停止
+      tcpdump -i any port 8080 and host 10.0.0.1   # 指定端口且主机
+
+      ## ping / traceroute / mtr
+      ping -c 4 8.8.8.8                    # 发4个包后停止
+      traceroute 8.8.8.8                   # 路由追踪
+      mtr 8.8.8.8                          # 动态路由追踪（需安装 mtr）
+      curl -v --connect-timeout 5 http://example.com  # 测试HTTP连接
+
+  - title: "防火墙管理 - firewalld / iptables"
+    type: linux
+    tags: [firewalld, iptables, firewall, port, security]
+    source: "firewalld 文档, iptables 手册"
+    source_url: "https://firewalld.org/documentation/"
+    content: |
+      # Linux 防火墙管理
+      # RHEL/CentOS 7+ 使用 firewalld（推荐）
+      # 参考: https://firewalld.org/documentation/man-pages/firewall-cmd.html
+
+      ## firewalld（RHEL/CentOS 7+, Fedora）
+      systemctl status firewalld
+      systemctl start firewalld
+      systemctl enable firewalld
+
+      # 查看防火墙状态
+      firewall-cmd --state
+      firewall-cmd --list-all                        # 查看当前 zone 所有规则
+      firewall-cmd --list-all --zone=public          # 查看 public zone
+      firewall-cmd --list-ports                      # 列出已开放端口
+
+      # 放行端口（--permanent 写入永久配置，需 --reload 生效）
+      firewall-cmd --permanent --add-port=2222/tcp
+      firewall-cmd --permanent --add-port=8080-8090/tcp  # 端口范围
+      firewall-cmd --reload                          # 重载使永久配置生效
+
+      # 放行服务（按服务名）
+      firewall-cmd --permanent --add-service=http
+      firewall-cmd --permanent --add-service=https
+      firewall-cmd --permanent --remove-service=telnet
+
+      # 临时放行（不加 --permanent，重启后失效，即时生效）
+      firewall-cmd --add-port=8080/tcp
+
+      # 删除规则
+      firewall-cmd --permanent --remove-port=8080/tcp
+      firewall-cmd --reload
+
+      ## iptables（旧版 RHEL 6 / Ubuntu 20.04以下）
+      # 查看规则（带行号）
+      iptables -L INPUT -n -v --line-numbers
+      # 放行端口
+      iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+      iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+      # 保存规则
+      # RHEL/CentOS:
+      service iptables save
+      # Ubuntu/Debian:
+      iptables-save > /etc/iptables/rules.v4
+
+      ## ufw（Ubuntu 简化防火墙）
+      ufw status verbose
+      ufw allow 80/tcp
+      ufw allow 22/tcp
+      ufw allow from 192.168.1.0/24 to any port 3306  # 仅允许内网访问 MySQL
+      ufw deny 8080/tcp
+      ufw enable
+      ufw reload
+
+  - title: "性能监控 - vmstat / iostat / sar"
+    type: linux
+    tags: [vmstat, iostat, sar, performance, cpu, memory, io]
+    source: "sysstat, procps-ng 手册"
+    source_url: "https://man7.org/linux/man-pages/man8/vmstat.8.html"
+    content: |
+      # Linux 系统性能监控
+      # 参考: https://man7.org/linux/man-pages/man8/vmstat.8.html
+      #       http://sebastien.godard.pagesperso-orange.fr/man_sysstat.html
+
+      ## vmstat - 虚拟内存统计（procps-ng）
+      vmstat 1 5           # 每秒输出一次，共5次
+      vmstat -s            # 内存使用汇总
+      # 关键列说明:
+      # r: 运行队列中进程数（持续>CPU核数表示CPU瓶颈）
+      # b: 阻塞进程数（等IO）
+      # swpd: 使用的swap（>0表示物理内存不足）
+      # si/so: swap换入/换出（>0表示严重内存不足）
+      # wa: IO等待百分比（持续>30%表示IO瓶颈）
+
+      ## free - 内存使用
+      free -h              # 人类可读格式（GiB/MiB）
+      free -s 2 -c 5       # 每2秒刷新，共5次
+      # 说明: available 列 = 实际可用内存（含可回收的cache/buffer）
+
+      ## iostat - IO 统计（sysstat 包）
+      iostat -x 1 5        # 扩展统计，每秒1次，共5次
+      iostat -d sda 1      # 只看 sda 设备，持续输出
+      # 关键列说明（-x 扩展模式）:
+      # r/s w/s: 每秒读/写请求数
+      # rkB/s wkB/s: 每秒读/写KB数
+      # await: 平均IO等待时间（ms，>20ms需关注）
+      # %util: 设备利用率（接近100%表示IO饱和）
+
+      ## sar - 系统活动报告（sysstat 包）
+      sar -u 1 5           # CPU 使用率，每秒1次，共5次
+      sar -r 1 5           # 内存使用率
+      sar -b 1 5           # IO统计
+      sar -n DEV 1 5       # 网卡统计
+      sar -q 1 5           # 运行队列和负载均值
+      sar -f /var/log/sa/sa$(date +%d)  # 查看今天的历史数据
+
+      ## 系统负载
+      uptime               # 显示 load average（1/5/15分钟）
+      cat /proc/loadavg    # 同上，更原始
+      # load average > CPU核数 表示CPU过载
+      nproc                # 查看CPU逻辑核数
+
+      ## dmesg - 内核日志
+      dmesg | tail -50                     # 最近50条内核日志
+      dmesg -T | grep -i "error\|warn"     # 人类可读时间，过滤错误
+      dmesg --level=err,warn               # 只显示错误和警告（Linux >= 3.5）
+
+  - title: "文件压缩与归档 - tar / gzip"
+    type: linux
+    tags: [tar, gzip, bzip2, zip, archive, backup]
+    source: "GNU tar 手册"
+    source_url: "https://www.gnu.org/software/tar/manual/tar.html"
+    content: |
+      # 文件压缩与归档
+      # 参考: https://man7.org/linux/man-pages/man1/tar.1.html
+
+      ## tar - 归档（不含压缩）
+      tar -cvf archive.tar /path/to/dir    # 创建归档（-c创建 -v显示过程 -f指定文件）
+      tar -xvf archive.tar                 # 解压到当前目录
+      tar -xvf archive.tar -C /target/dir  # 解压到指定目录
+      tar -tvf archive.tar                 # 列出归档内容（不解压）
+
+      ## tar + gzip（.tar.gz 或 .tgz）
+      tar -czf archive.tar.gz /path/to/dir          # 创建 .tar.gz
+      tar -xzf archive.tar.gz                        # 解压 .tar.gz
+      tar -xzf archive.tar.gz -C /target/dir
+
+      ## tar + bzip2（.tar.bz2，压缩率更高但更慢）
+      tar -cjf archive.tar.bz2 /path/to/dir
+      tar -xjf archive.tar.bz2
+
+      ## tar + xz（.tar.xz，压缩率最高）
+      tar -cJf archive.tar.xz /path/to/dir
+      tar -xJf archive.tar.xz
+
+      ## 排除文件
+      tar -czf backup.tar.gz /app --exclude=/app/logs --exclude=/app/tmp
+
+      ## 增量备份（--newer）
+      tar -czf incremental.tar.gz --newer-mtime="2024-01-01" /app/data
+
+      ## gzip / gunzip 单文件
+      gzip file.txt                        # 压缩（会替换原文件为 file.txt.gz）
+      gunzip file.txt.gz                   # 解压
+      gzip -k file.txt                     # 压缩并保留原文件（-k keep）
+      zcat file.txt.gz                     # 不解压直接读取内容
+
+  - title: "crontab - 定时任务"
+    type: linux
+    tags: [crontab, cron, schedule, timer, periodic]
+    source: "Vixie cron, cronie 手册"
+    source_url: "https://man7.org/linux/man-pages/man5/crontab.5.html"
+    content: |
+      # crontab 定时任务
+      # 参考: https://man7.org/linux/man-pages/man5/crontab.5.html
+
+      ## 基本操作
+      crontab -l                           # 列出当前用户的 crontab
+      crontab -e                           # 编辑 crontab（默认用 vi）
+      crontab -r                           # 删除当前用户的 crontab（危险！）
+      crontab -u nginx -l                  # 查看指定用户的 crontab（需root）
+
+      ## crontab 格式
+      # ┌───── 分钟 (0-59)
+      # │ ┌─── 小时 (0-23)
+      # │ │ ┌─ 日期 (1-31)
+      # │ │ │ ┌ 月份 (1-12 或 jan-dec)
+      # │ │ │ │ ┌ 星期几 (0-7，0和7都是周日；或 sun-sat)
+      # │ │ │ │ │
+      # * * * * *  command to execute
+
+      ## 常用时间表达式
+      0 2 * * *    /scripts/backup.sh          # 每天凌晨2:00
+      */5 * * * *  /scripts/monitor.sh         # 每5分钟
+      0 */4 * * *  /scripts/report.sh          # 每4小时整点
+      0 2 * * 1    /scripts/weekly_backup.sh   # 每周一凌晨2:00
+      0 2 1 * *    /scripts/monthly.sh         # 每月1日凌晨2:00
+      0 2 * * 1-5  /scripts/workday.sh         # 工作日（周一到周五）凌晨2:00
+
+      ## 输出重定向（避免邮件通知）
+      0 2 * * * /scripts/backup.sh >> /var/log/backup.log 2>&1
+      0 2 * * * /scripts/backup.sh > /dev/null 2>&1   # 静默执行
+
+      ## 查看 cron 日志
+      # RHEL/CentOS
+      grep cron /var/log/cron
+      # Ubuntu/Debian
+      grep cron /var/log/syslog
+
+      ## systemd timer（替代 cron，RHEL 7+）
+      systemctl list-timers --all         # 查看所有 timer
+      # 示例 timer 文件: /etc/systemd/system/backup.timer
+
+  - title: "SSH 安全配置"
+    type: linux
+    tags: [ssh, sshd, openssh, key, security, config]
+    source: "OpenSSH 9.x 官方文档"
+    source_url: "https://man.openbsd.org/sshd_config"
+    content: |
+      # SSH 安全配置（OpenSSH）
+      # 参考: https://man.openbsd.org/sshd_config
+      #       https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/securing_networks/assembly_using-secure-communications-between-two-systems-with-openssh_securing-networks
+
+      ## 修改 SSH 端口（以改为2222为例）
+      # Step 1: 备份配置
+      cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.$(date +%Y%m%d_%H%M%S).bak
+      # Step 2: 修改端口
+      sed -i 's/^#\?Port [0-9]\+/Port 2222/' /etc/ssh/sshd_config
+      # Step 3: 验证语法
+      sshd -t
+      # Step 4: 放行新端口（防火墙必须先放行，否则锁死！）
+      firewall-cmd --permanent --add-port=2222/tcp && firewall-cmd --reload
+      # Step 5: 重启 SSH
+      systemctl restart sshd
+      # Step 6: 保持当前连接，用新端口另开窗口测试
+      ssh -p 2222 user@host
+
+      ## 禁止 root 直接 SSH 登录
+      sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+
+      ## 禁止密码登录（仅密钥登录）
+      sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+      sed -i 's/^#\?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+
+      ## 生成密钥对（客户端执行）
+      ssh-keygen -t ed25519 -C "your_email@example.com"   # 推荐 ed25519（更安全）
+      ssh-keygen -t rsa -b 4096 -C "your_email@example.com"  # RSA 4096（兼容性更好）
+
+      ## 部署公钥到服务器
+      ssh-copy-id -i ~/.ssh/id_ed25519.pub user@host
+      # 或手动
+      cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+      chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+
+      ## sshd_config 关键安全配置项
+      # /etc/ssh/sshd_config
+      Port 2222
+      PermitRootLogin no
+      PasswordAuthentication no
+      MaxAuthTries 3
+      LoginGraceTime 60
+      AllowUsers deployer admin
+      Protocol 2
+      X11Forwarding no
+      AllowTcpForwarding no
+
+      ## 验证配置并重载
+      sshd -t && systemctl reload sshd
+
+  - title: "软件包管理 - yum/dnf/apt"
+    type: linux
+    tags: [yum, dnf, apt, rpm, dpkg, package, install, update]
+    source: "DNF 文档, APT 手册"
+    source_url: "https://dnf.readthedocs.io/en/latest/command_ref.html"
+    content: |
+      # 软件包管理
+      # 参考: https://dnf.readthedocs.io/en/latest/command_ref.html
+      #       https://manpages.ubuntu.com/manpages/focal/man8/apt.8.html
+
+      ## DNF / YUM（RHEL/CentOS/Rocky/AlmaLinux）
+      # RHEL 8+ 使用 dnf（yum 是其别名，命令兼容）
+      dnf install nginx                        # 安装
+      dnf install -y nginx                     # 安装（自动确认）
+      dnf remove nginx                         # 卸载
+      dnf update                               # 更新所有包
+      dnf update nginx                         # 只更新 nginx
+      dnf search nginx                         # 搜索包
+      dnf info nginx                           # 查看包信息
+      dnf list installed                       # 列出已安装的包
+      dnf list installed | grep nginx
+      dnf repolist                             # 列出已启用的仓库
+      dnf history                              # 查看历史操作
+      dnf history undo 5                       # 回滚第5次操作
+      dnf provides /usr/bin/vim               # 查找哪个包提供了某命令
+
+      ## APT（Ubuntu/Debian）
+      apt update                               # 更新包索引（不升级包）
+      apt upgrade                              # 升级所有可升级包
+      apt install nginx                        # 安装
+      apt install -y nginx                     # 安装（自动确认）
+      apt remove nginx                         # 卸载（保留配置文件）
+      apt purge nginx                          # 卸载并删除配置文件
+      apt autoremove                           # 删除不再需要的依赖包
+      apt search nginx
+      apt show nginx
+      dpkg -l | grep nginx                     # 查看已安装包
+      dpkg -L nginx                            # 查看包安装了哪些文件
+      dpkg -S /usr/sbin/nginx                  # 查找文件属于哪个包
+
+      ## 配置国内镜像（RHEL/CentOS 7）
+      # 阿里云镜像
+      sed -i 's|^baseurl=http://mirror.centos.org|baseurl=https://mirrors.aliyun.com|g' /etc/yum.repos.d/CentOS-*.repo
+      yum makecache
+
+      ## 配置国内镜像（Ubuntu）
+      # 编辑 /etc/apt/sources.list，将 archive.ubuntu.com 替换为 mirrors.aliyun.com
+      sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+      apt update

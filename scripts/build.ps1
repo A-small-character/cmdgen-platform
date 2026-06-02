@@ -39,6 +39,23 @@ Write-Host "Go  : $(go version)"
 Write-Host "Mode: Target=$Target  Prod=$Prod  Offline=$Offline  SetProxy=$SetProxy"
 Write-Host ''
 
+# ---- Step 0: sync knowledge_base -> embedded kb (for offline engine) ------------
+Write-Host '[0/3] Syncing knowledge base into offline engine ...' -ForegroundColor Yellow
+$kbDir = 'internal/application/generator/kb'
+if (-not (Test-Path $kbDir)) { New-Item -ItemType Directory -Path $kbDir | Out-Null }
+$map = @{
+  'knowledge_base/linux/commands.yaml'         = 'linux.yaml'
+  'knowledge_base/elasticsearch/commands.yaml' = 'elasticsearch.yaml'
+  'knowledge_base/network/huawei_switch.yaml'  = 'network.yaml'
+  'knowledge_base/docker/commands.yaml'        = 'docker.yaml'
+  'knowledge_base/kubernetes/commands.yaml'    = 'kubernetes.yaml'
+  'knowledge_base/mysql/commands.yaml'         = 'mysql.yaml'
+}
+foreach ($src in $map.Keys) {
+  if (Test-Path $src) { Copy-Item $src (Join-Path $kbDir $map[$src]) -Force }
+}
+Write-Host "      kb files: $((Get-ChildItem $kbDir -Filter *.yaml).Count)" -ForegroundColor Gray
+
 # ---- Step 1: dependency handling ------------------------------------------------
 if ($Offline) {
     Write-Host '[1/3] Offline mode - skipping go mod download.' -ForegroundColor Gray
