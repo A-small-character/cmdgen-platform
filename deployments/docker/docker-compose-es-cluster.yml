@@ -1,15 +1,23 @@
 # ============================================================
-# 智能命令生成平台 - 双 ES 集群（互为 CCR 主备）
+# 智能命令生成平台 - 双 ES 集群（开启基础 Security）
 # ============================================================
-# 集群 A (cmdgen-a): es-a1 / es-a2 / es-a3  -> 主集群, 端口 9200
-# 集群 B (cmdgen-b): es-b1 / es-b2 / es-b3  -> 备集群, 端口 9201
-# CCR 跨集群复制预留（当前不配置）
+# 集群 A (cmdgen-a): es-a1/a2/a3  -> 主集群, HTTP 9200
+# 集群 B (cmdgen-b): es-b1/b2/b3  -> 备集群, HTTP 9201
+# Kibana A: 5601 (连主)   Kibana B: 5602 (连备)
+#
+# 安全模型（基础 security）:
+#   - xpack.security.enabled=true        启用认证
+#   - transport.ssl 节点间 TLS 加密      （多节点集群强制要求）
+#   - http.ssl.enabled=false             HTTP 层明文 + 密码认证（本地访问简化）
+#   - 登录账号: elastic / ${ELASTIC_PASSWORD}
+#   - Kibana 后端账号: kibana_system / ${KIBANA_PASSWORD}
+#
+# 默认密码（生产请改 .env）:
+#   ELASTIC_PASSWORD=Cmdgen@ES2024
+#   KIBANA_PASSWORD=Cmdgen@KB2024
 #
 # 启动: docker compose -f deployments/docker/docker-compose-es-cluster.yml up -d
-# 停止: docker compose -f deployments/docker/docker-compose-es-cluster.yml down
 # 清空: docker compose -f deployments/docker/docker-compose-es-cluster.yml down -v
-#
-# 资源: 6 节点 x 768MB 堆 ≈ 9GB 内存
 # ============================================================
 
 x-es-common: &es-common
@@ -24,10 +32,59 @@ x-es-common: &es-common
   restart: unless-stopped
 
 services:
+  # ── 证书与密码初始化（生成 CA + 6 节点证书，设置 kibana_system 密码）──
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    container_name: cmdgen-es-setup
+    user: "0"
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD:-Cmdgen@KB2024}
+    volumes:
+      - certs:/usr/share/elasticsearch/config/certs
+    command: >
+      bash -c '
+        set -e;
+        if [ ! -f config/certs/ca.zip ]; then
+          echo "==> 生成 CA";
+          bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
+          unzip -o config/certs/ca.zip -d config/certs;
+        fi;
+        if [ ! -f config/certs/certs.zip ]; then
+          echo "==> 生成节点证书";
+          printf "instances:\n  - name: es-a1\n    dns: [es-a1, localhost]\n  - name: es-a2\n    dns: [es-a2, localhost]\n  - name: es-a3\n    dns: [es-a3, localhost]\n  - name: es-b1\n    dns: [es-b1, localhost]\n  - name: es-b2\n    dns: [es-b2, localhost]\n  - name: es-b3\n    dns: [es-b3, localhost]\n" > config/certs/instances.yml;
+          bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
+          unzip -o config/certs/certs.zip -d config/certs;
+        fi;
+        echo "==> 设置证书权限";
+        chown -R 1000:0 config/certs;
+        find config/certs -type d -exec chmod 750 {} \;;
+        find config/certs -type f -exec chmod 640 {} \;;
+        echo "==> 等待主集群 es-a1 启动";
+        until curl -s http://es-a1:9200 >/dev/null; do sleep 3; done;
+        echo "==> 为主集群设置 kibana_system 密码";
+        until curl -s -X POST -u "elastic:$${ELASTIC_PASSWORD}" -H "Content-Type: application/json" http://es-a1:9200/_security/user/kibana_system/_password -d "{\"password\":\"$${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 5; done;
+        echo "==> 等待备集群 es-b1 启动";
+        until curl -s http://es-b1:9200 >/dev/null; do sleep 3; done;
+        echo "==> 为备集群设置 kibana_system 密码";
+        until curl -s -X POST -u "elastic:$${ELASTIC_PASSWORD}" -H "Content-Type: application/json" http://es-b1:9200/_security/user/kibana_system/_password -d "{\"password\":\"$${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 5; done;
+        echo "==> Setup 完成";
+        touch config/certs/.setup_done;
+        sleep infinity;
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f config/certs/es-a1/es-a1.crt ]"]
+      interval: 5s
+      timeout: 5s
+      retries: 120
+    networks: [es-net]
+
   # ── 集群 A: cmdgen-a (主) ────────────────────────────────
   es-a1:
     <<: *es-common
     container_name: es-a1
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-a1
       - cluster.name=cmdgen-a
@@ -35,26 +92,33 @@ services:
       - cluster.initial_master_nodes=es-a1,es-a2,es-a3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
-      - xpack.security.transport.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-a1/es-a1.key
+      - xpack.security.transport.ssl.certificate=certs/es-a1/es-a1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     ports:
       - "9200:9200"
-      - "9300:9300"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_a1_data:/usr/share/elasticsearch/data
     networks: [es-net]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
-      interval: 20s
+      test: ["CMD-SHELL", "curl -s -u elastic:${ELASTIC_PASSWORD:-Cmdgen@ES2024} http://localhost:9200/_cluster/health | grep -qE 'green|yellow' || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 12
+      retries: 20
       start_period: 60s
 
   es-a2:
     <<: *es-common
     container_name: es-a2
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-a2
       - cluster.name=cmdgen-a
@@ -62,15 +126,25 @@ services:
       - cluster.initial_master_nodes=es-a1,es-a2,es-a3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-a2/es-a2.key
+      - xpack.security.transport.ssl.certificate=certs/es-a2/es-a2.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_a2_data:/usr/share/elasticsearch/data
     networks: [es-net]
 
   es-a3:
     <<: *es-common
     container_name: es-a3
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-a3
       - cluster.name=cmdgen-a
@@ -78,9 +152,17 @@ services:
       - cluster.initial_master_nodes=es-a1,es-a2,es-a3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-a3/es-a3.key
+      - xpack.security.transport.ssl.certificate=certs/es-a3/es-a3.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_a3_data:/usr/share/elasticsearch/data
     networks: [es-net]
 
@@ -88,6 +170,8 @@ services:
   es-b1:
     <<: *es-common
     container_name: es-b1
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-b1
       - cluster.name=cmdgen-b
@@ -95,26 +179,33 @@ services:
       - cluster.initial_master_nodes=es-b1,es-b2,es-b3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
-      - xpack.security.transport.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-b1/es-b1.key
+      - xpack.security.transport.ssl.certificate=certs/es-b1/es-b1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     ports:
       - "9201:9200"
-      - "9301:9300"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_b1_data:/usr/share/elasticsearch/data
     networks: [es-net]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
-      interval: 20s
+      test: ["CMD-SHELL", "curl -s -u elastic:${ELASTIC_PASSWORD:-Cmdgen@ES2024} http://localhost:9200/_cluster/health | grep -qE 'green|yellow' || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 12
+      retries: 20
       start_period: 60s
 
   es-b2:
     <<: *es-common
     container_name: es-b2
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-b2
       - cluster.name=cmdgen-b
@@ -122,15 +213,25 @@ services:
       - cluster.initial_master_nodes=es-b1,es-b2,es-b3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-b2/es-b2.key
+      - xpack.security.transport.ssl.certificate=certs/es-b2/es-b2.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_b2_data:/usr/share/elasticsearch/data
     networks: [es-net]
 
   es-b3:
     <<: *es-common
     container_name: es-b3
+    depends_on:
+      setup: { condition: service_healthy }
     environment:
       - node.name=es-b3
       - cluster.name=cmdgen-b
@@ -138,47 +239,56 @@ services:
       - cluster.initial_master_nodes=es-b1,es-b2,es-b3
       - node.roles=master,data,ingest,remote_cluster_client
       - bootstrap.memory_lock=true
-      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-Cmdgen@ES2024}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=certs/es-b3/es-b3.key
+      - xpack.security.transport.ssl.certificate=certs/es-b3/es-b3.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
     volumes:
+      - certs:/usr/share/elasticsearch/config/certs
       - es_b3_data:/usr/share/elasticsearch/data
     networks: [es-net]
 
-  # ── Kibana A: 连接主集群 cmdgen-a ────────────────────────
+  # ── Kibana A: 连主集群 ───────────────────────────────────
   kibana-a:
     image: docker.elastic.co/kibana/kibana:9.0.0
     container_name: cmdgen-kibana-a
+    depends_on:
+      es-a1: { condition: service_healthy }
     environment:
       - SERVERNAME=kibana-a
       - ELASTICSEARCH_HOSTS=http://es-a1:9200
-      - XPACK_SECURITY_ENABLED=false
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD:-Cmdgen@KB2024}
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=cmdgenA_kibana_32bytes_secret_key_001
     ports:
       - "5601:5601"
-    depends_on:
-      es-a1:
-        condition: service_healthy
     networks: [es-net]
     restart: unless-stopped
 
-  # ── Kibana B: 连接备集群 cmdgen-b ────────────────────────
+  # ── Kibana B: 连备集群 ───────────────────────────────────
   kibana-b:
     image: docker.elastic.co/kibana/kibana:9.0.0
     container_name: cmdgen-kibana-b
+    depends_on:
+      es-b1: { condition: service_healthy }
     environment:
       - SERVERNAME=kibana-b
       - ELASTICSEARCH_HOSTS=http://es-b1:9200
-      - XPACK_SECURITY_ENABLED=false
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD:-Cmdgen@KB2024}
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=cmdgenB_kibana_32bytes_secret_key_002
     ports:
       - "5602:5601"
-    depends_on:
-      es-b1:
-        condition: service_healthy
     networks: [es-net]
     restart: unless-stopped
 
 volumes:
+  certs:
   es_a1_data:
   es_a2_data:
   es_a3_data:

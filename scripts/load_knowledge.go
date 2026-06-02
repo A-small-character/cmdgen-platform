@@ -66,13 +66,34 @@ type metadata struct {
 	ModelName  string `json:"model_name"`
 }
 
+// authTransport 给所有请求注入 Basic Auth
+type authTransport struct {
+	user, pass string
+	base       http.RoundTripper
+}
+
+func (t authTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if t.user != "" {
+		r.SetBasicAuth(t.user, t.pass)
+	}
+	return t.base.RoundTrip(r)
+}
+
 func main() {
+	// 用法: go run scripts/load_knowledge.go [esAddr] [username] [password]
 	esAddr := "http://localhost:9200"
 	if len(os.Args) > 1 {
 		esAddr = os.Args[1]
 	}
+	user, pass := "", ""
+	if len(os.Args) > 3 {
+		user, pass = os.Args[2], os.Args[3]
+	}
 	esAddr = strings.TrimRight(esAddr, "/")
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: authTransport{user: user, pass: pass, base: http.DefaultTransport},
+	}
 
 	files := []string{
 		"knowledge_base/linux/commands.yaml",

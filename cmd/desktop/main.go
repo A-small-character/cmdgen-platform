@@ -89,7 +89,9 @@ func settingsPath() string {
 }
 
 func loadSettings() *userSettings {
-	s := &userSettings{ESHost: "localhost", ESPort: "9200"}
+	// 默认账密与 docker-compose-es-cluster.yml 的 ELASTIC_PASSWORD 一致，开箱即连
+	// 生产环境请在「设置」页修改，或删除 用户配置目录/cmdgen/settings.json 后重填
+	s := &userSettings{ESHost: "localhost", ESPort: "9200", ESUsername: "elastic", ESPassword: "Cmdgen@ES2024"}
 	data, err := os.ReadFile(settingsPath())
 	if err == nil {
 		_ = json.Unmarshal(data, s)
