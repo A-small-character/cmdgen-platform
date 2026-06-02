@@ -1,496 +1,383 @@
-# 来源: https://dev.mysql.com/doc/refman/8.0/en/  https://dev.mysql.com/doc/refman/8.4/en/
-# 版本基线: MySQL 5.7 / 8.0 / 8.4
+# MySQL 命令知识库
+# 来源: https://dev.mysql.com/doc/refman/8.0/en/
+#       https://dev.mysql.com/doc/refman/8.4/en/
+# 版本覆盖: MySQL 5.7 / 8.0 / 8.4
+
 knowledge_items:
 
-  - title: "MySQL用户与权限管理"
+  - title: "用户与权限管理"
     type: mysql
-    tags: ["user", "grant", "privilege", "security"]
-    source: "MySQL官方文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/access-control.html"
-    version: "MySQL 5.7, 8.0, 8.4"
+    tags: [user, grant, privilege, create, password, authentication]
+    source: "MySQL 8.0 官方参考手册 - 用户账户管理"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/user-account-management.html"
+    version: "5.7,8.0,8.4"
     content: |
       # MySQL 用户与权限管理
+      # 官方文档: https://dev.mysql.com/doc/refman/8.0/en/user-account-management.html
+      # CREATE USER: https://dev.mysql.com/doc/refman/8.0/en/create-user.html
+      # GRANT: https://dev.mysql.com/doc/refman/8.0/en/grant.html
 
       ## 创建用户
-      -- MySQL 5.7 / 8.0 / 8.4 通用语法
-      CREATE USER 'appuser'@'%'         IDENTIFIED BY 'SecureP@ss!';
-      CREATE USER 'appuser'@'10.0.0.%'  IDENTIFIED BY 'SecureP@ss!';  -- 限制来源IP
-      CREATE USER 'appuser'@'localhost' IDENTIFIED BY 'SecureP@ss!';
+      # MySQL 8.0+：推荐 caching_sha2_password 认证插件（默认）
+      CREATE USER 'appuser'@'%' IDENTIFIED BY 'StrongPass123!';
+      CREATE USER 'appuser'@'localhost' IDENTIFIED BY 'StrongPass123!';
+      # 兼容旧客户端（如 MySQL 5.x 客户端）使用 mysql_native_password
+      CREATE USER 'appuser'@'%' IDENTIFIED WITH mysql_native_password BY 'StrongPass123!';
 
-      -- MySQL 8.0+: 默认 caching_sha2_password 认证插件
-      -- MySQL 5.7:  默认 mysql_native_password
-      -- 指定认证插件（兼容旧客户端）
-      CREATE USER 'appuser'@'%' IDENTIFIED WITH mysql_native_password BY 'SecureP@ss!';
-
-      ## 授权（最小权限原则）
-      -- 应用账号：只授予业务库的DML权限
-      GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.* TO 'appuser'@'%';
-      -- 只读账号
+      ## 授权
+      # 完整权限（单个数据库）
+      GRANT ALL PRIVILEGES ON mydb.* TO 'appuser'@'%';
+      # 只读权限
       GRANT SELECT ON mydb.* TO 'readonly'@'%';
-      -- 特定表权限
+      # 只读特定表
       GRANT SELECT ON mydb.orders TO 'report'@'%';
-      -- 管理员（慎用ALL）
-      GRANT ALL PRIVILEGES ON mydb.* TO 'admin'@'localhost';
-      -- 授权后刷新
+      # 指定权限
+      GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.* TO 'appuser'@'%';
+      # 全部权限（谨慎，相当于root）
+      GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION;
+      # 刷新权限（修改授权表后执行）
       FLUSH PRIVILEGES;
 
-      ## 查看权限
+      ## 查看用户和权限
+      SELECT user, host, plugin, authentication_string FROM mysql.user;
       SHOW GRANTS FOR 'appuser'@'%';
-      SELECT user, host, plugin, authentication_string
-        FROM mysql.user
-       WHERE user NOT IN ('root','mysql.sys','mysql.session','mysql.infoschema');
-
-      ## 撤销权限
-      REVOKE INSERT, UPDATE, DELETE ON mydb.* FROM 'appuser'@'%';
+      SELECT CURRENT_USER();            # 查看当前连接的用户
 
       ## 修改密码
-      -- MySQL 8.0+
-      ALTER USER 'appuser'@'%' IDENTIFIED BY 'NewP@ss!';
-      -- 强制下次登录修改密码
-      ALTER USER 'appuser'@'%' PASSWORD EXPIRE;
+      ALTER USER 'appuser'@'%' IDENTIFIED BY 'NewPass456!';
+      # MySQL 5.7 兼容方式
+      SET PASSWORD FOR 'appuser'@'%' = PASSWORD('NewPass456!');
+
+      ## 撤销权限
+      REVOKE SELECT ON mydb.* FROM 'readonly'@'%';
+      REVOKE ALL PRIVILEGES ON mydb.* FROM 'appuser'@'%';
 
       ## 删除用户
-      DROP USER IF EXISTS 'appuser'@'%';
+      DROP USER 'appuser'@'%';
 
-      ## 版本差异
-      -- 8.0→8.4: 主从术语规范化，但用户管理语法不变
-      -- 8.0+: 支持 ROLES（角色）
-      CREATE ROLE 'app_read', 'app_write';
-      GRANT SELECT ON mydb.* TO 'app_read';
-      GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.* TO 'app_write';
-      GRANT 'app_write' TO 'appuser'@'%';
-      SET DEFAULT ROLE 'app_write' TO 'appuser'@'%';
-
-  - title: "MySQL备份与恢复（mysqldump/xtrabackup/克隆插件）"
+  - title: "数据库和表管理"
     type: mysql
-    tags: ["backup", "restore", "mysqldump", "xtrabackup", "clone", "binlog"]
-    source: "MySQL官方文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/backup-methods.html"
-    version: "MySQL 5.7, 8.0, 8.4"
+    tags: [database, table, create, alter, drop, schema, charset]
+    source: "MySQL 8.0 官方参考手册 - DDL"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/sql-data-definition-statements.html"
+    version: "5.7,8.0,8.4"
     content: |
-      # MySQL 备份与恢复
+      # 数据库和表管理（DDL）
+      # 官方文档: https://dev.mysql.com/doc/refman/8.0/en/create-database.html
 
-      ## 1. mysqldump 逻辑备份
+      ## 数据库操作
+      CREATE DATABASE mydb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      # utf8mb4 支持完整 Unicode 包括 Emoji（utf8 是 MySQL 的"假utf8"，只有3字节）
+      SHOW DATABASES;
+      USE mydb;
+      SELECT DATABASE();               # 查看当前数据库
+      DROP DATABASE mydb;              # 危险！不可恢复
+      ALTER DATABASE mydb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-      ### 全量备份（推荐选项）
-      mysqldump \
-        -u root -p \
-        --all-databases \
-        --single-transaction \          # InnoDB一致性快照，不锁表
-        --master-data=2 \               # 注释形式记录binlog位点(5.7/8.0)
-        --source-data=2 \               # 8.4+新语法(等同master-data)
-        --flush-logs \                  # 刷新binlog
-        --triggers --routines --events \# 包含触发器、存储过程、事件
-        --hex-blob \                    # 二进制字段用十六进制
-        --set-gtid-purged=OFF \         # GTID环境下按需设置
-        2>/dev/null \
-        | gzip > /backup/full_$(date +%Y%m%d_%H%M%S).sql.gz
+      ## 表操作
+      SHOW TABLES;
+      SHOW TABLES FROM mydb;
+      DESCRIBE orders;                 # 或 DESC orders; 查看表结构
+      SHOW CREATE TABLE orders\G       # 显示建表语句
+      SHOW INDEX FROM orders;          # 查看索引
 
-      ### 单库备份
+      ## 创建表（InnoDB，含常见字段类型）
+      CREATE TABLE orders (
+        id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id     BIGINT UNSIGNED NOT NULL,
+        status      TINYINT NOT NULL DEFAULT 0 COMMENT '0=pending 1=paid 2=shipped',
+        amount      DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        note        VARCHAR(500) DEFAULT NULL,
+        created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_user_id (user_id),
+        KEY idx_status_created (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        COMMENT='订单表';
+
+      ## ALTER TABLE（常用操作）
+      ALTER TABLE orders ADD COLUMN remark TEXT DEFAULT NULL AFTER note;
+      ALTER TABLE orders MODIFY COLUMN note VARCHAR(1000) DEFAULT NULL;
+      ALTER TABLE orders DROP COLUMN remark;
+      ALTER TABLE orders ADD INDEX idx_amount (amount);
+      ALTER TABLE orders DROP INDEX idx_amount;
+      ALTER TABLE orders RENAME TO order_records;
+
+      ## MySQL 8.0 在线 DDL（Online DDL，大表推荐）
+      # 添加索引（默认 INPLACE，不锁表）
+      ALTER TABLE orders ADD INDEX idx_user_status (user_id, status), ALGORITHM=INPLACE, LOCK=NONE;
+      # 修改列（需要 COPY 方式时会锁表，改用 pt-online-schema-change 或 gh-ost）
+
+  - title: "备份与恢复 - mysqldump"
+    type: mysql
+    tags: [backup, restore, mysqldump, dump, import, export]
+    source: "MySQL 8.0 官方参考手册 - mysqldump"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html"
+    version: "5.7,8.0,8.4"
+    content: |
+      # MySQL 备份与恢复（mysqldump）
+      # 官方文档: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
+
+      ## 备份单个数据库
       mysqldump -u root -p \
         --single-transaction \
-        --databases mydb \
+        --routines \
+        --triggers \
+        --hex-blob \
+        mydb > /backup/mydb_$(date +%Y%m%d_%H%M%S).sql
+      # --single-transaction: InnoDB 热备（一致性快照，不锁表）
+      # --routines:           备份存储过程和函数
+      # --triggers:           备份触发器（默认包含，显式指定更清晰）
+      # --hex-blob:           BLOB/BINARY 列用 HEX 表示（避免字符集问题）
+
+      ## 备份并压缩
+      mysqldump -u root -p --single-transaction --routines --triggers mydb \
         | gzip > /backup/mydb_$(date +%Y%m%d_%H%M%S).sql.gz
 
-      ### 恢复
-      gunzip < /backup/full_20240101_020000.sql.gz | mysql -u root -p
+      ## 备份所有数据库
+      mysqldump -u root -p \
+        --all-databases \
+        --single-transaction \
+        --routines \
+        --triggers \
+        --events \
+        > /backup/all_dbs_$(date +%Y%m%d).sql
+      # --events: 备份计划事件
 
-      ## 2. mysqlbinlog 增量恢复（基于备份后的binlog）
-      mysqlbinlog \
-        --start-datetime="2024-01-01 10:00:00" \
-        --stop-datetime="2024-01-01 11:00:00" \
-        /var/lib/mysql/binlog.000123 \
-        | mysql -u root -p
+      ## 只备份表结构（不含数据）
+      mysqldump -u root -p --no-data mydb > /backup/mydb_schema.sql
 
-      ## 3. Percona XtraBackup 物理热备（推荐大数据量）
-      # 全量备份
-      xtrabackup --backup \
-        --user=root --password='xxx' \
-        --target-dir=/backup/full \
-        --parallel=4
+      ## 只备份数据（不含建表语句）
+      mysqldump -u root -p --no-create-info mydb orders > /backup/orders_data.sql
 
-      # 增量备份
-      xtrabackup --backup \
-        --user=root --password='xxx' \
-        --target-dir=/backup/inc1 \
-        --incremental-basedir=/backup/full \
-        --parallel=4
+      ## 恢复单个数据库
+      mysql -u root -p mydb < /backup/mydb_20240101_020000.sql
 
-      # 恢复：先准备(prepare)再复制
-      xtrabackup --prepare --target-dir=/backup/full
-      xtrabackup --prepare --target-dir=/backup/full \
-                 --incremental-dir=/backup/inc1
-      systemctl stop mysqld
-      xtrabackup --copy-back --target-dir=/backup/full
-      chown -R mysql:mysql /var/lib/mysql
-      systemctl start mysqld
+      ## 恢复压缩备份
+      gunzip < /backup/mydb_20240101.sql.gz | mysql -u root -p mydb
 
-      ## 4. MySQL Clone Plugin（8.0.17+，主从初始化最佳方案）
-      -- 在donor安装插件
-      INSTALL PLUGIN clone SONAME 'mysql_clone.so';
-      -- 授权
-      GRANT BACKUP_ADMIN ON *.* TO 'clone_user'@'%';
-      GRANT CLONE_ADMIN ON *.* TO 'clone_user'@'%';
+      ## 导入大文件优化
+      mysql -u root -p --max_allowed_packet=512M mydb < large_backup.sql
 
-      -- 在recipient执行远程克隆（自动同步数据并重启）
-      CLONE INSTANCE FROM 'clone_user'@'10.0.0.1':3306
-        IDENTIFIED BY 'password';
-
-      -- 查看克隆状态
-      SELECT STATE, ERROR_NO, BINLOG_FILE, BINLOG_POSITION
-        FROM performance_schema.clone_status;
-
-  - title: "MySQL主从复制配置"
+  - title: "主从复制 - GTID 模式"
     type: mysql
-    tags: ["replication", "master", "slave", "source", "replica", "gtid", "binlog"]
-    source: "MySQL官方文档"
+    tags: [replication, master, slave, gtid, binlog, replica]
+    source: "MySQL 8.0 官方参考手册 - 复制"
     source_url: "https://dev.mysql.com/doc/refman/8.0/en/replication.html"
-    version: "MySQL 5.7, 8.0, 8.4"
+    version: "5.7,8.0,8.4"
     content: |
-      # MySQL 主从复制
+      # MySQL 主从复制（GTID 模式）
+      # 官方文档: https://dev.mysql.com/doc/refman/8.0/en/replication-gtids.html
 
-      ## 注意：MySQL 8.0.22+ 和 8.4 使用新术语
-      ## MASTER → SOURCE，SLAVE → REPLICA
-      ## 旧命令在8.4中已移除
+      ## 主库配置（my.cnf / my.ini）
+      # [mysqld]
+      # server-id = 1
+      # log-bin = mysql-bin
+      # binlog-format = ROW                 # ROW 是 GTID 推荐格式
+      # gtid-mode = ON
+      # enforce-gtid-consistency = ON
+      # log-slave-updates = ON              # MySQL 8.0 中是 log_replica_updates
+      # binlog-expire-logs-seconds = 604800 # 7天（MySQL 8.0.1+，旧版用 expire_logs_days）
 
-      ## my.cnf — 主库配置
-      [mysqld]
-      server-id = 1                    # 集群内唯一
-      log-bin = binlog                 # 开启binlog
-      binlog_format = ROW              # ROW格式（推荐）
-      binlog_row_image = FULL          # 完整行镜像
-      sync_binlog = 1                  # 每次提交刷盘（强一致性）
-      gtid_mode = ON                   # 开启GTID（推荐）
-      enforce_gtid_consistency = ON
-      expire_logs_days = 7             # binlog保留天数（5.7）
-      binlog_expire_logs_seconds = 604800  # binlog保留秒数（8.0+）
+      ## 从库配置（my.cnf）
+      # [mysqld]
+      # server-id = 2
+      # gtid-mode = ON
+      # enforce-gtid-consistency = ON
+      # log-slave-updates = ON
+      # read-only = ON                      # 从库设为只读
+      # super-read-only = ON               # 防止 super 权限用户也写入（MySQL 5.7.8+）
 
-      ## my.cnf — 从库配置
-      [mysqld]
-      server-id = 2                    # 与主库不同
-      log-bin = binlog
-      relay_log = relay-bin
-      read_only = ON                   # 从库只读
-      super_read_only = ON             # 防止super权限用户写入
-      gtid_mode = ON
-      enforce_gtid_consistency = ON
-      log_replica_updates = ON         # 级联复制需要（8.0.26+新语法）
-
-      ## 创建复制账号（主库执行）
-      CREATE USER 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplP@ss!';
-      GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
+      ## 主库：创建复制用户
+      CREATE USER 'replicator'@'%' IDENTIFIED BY 'ReplicaPass123!';
+      GRANT REPLICATION SLAVE ON *.* TO 'replicator'@'%';
       FLUSH PRIVILEGES;
 
-      ## 配置从库（GTID模式）
-      -- MySQL 8.0.22 之前
-      CHANGE MASTER TO
-        MASTER_HOST='10.0.0.1',
-        MASTER_PORT=3306,
-        MASTER_USER='repl',
-        MASTER_PASSWORD='ReplP@ss!',
-        MASTER_AUTO_POSITION=1;    -- GTID自动定位
+      ## 主库：获取当前状态
+      SHOW MASTER STATUS\G
+      # 记录 File 和 Position（非GTID时使用）
 
-      -- MySQL 8.0.23+ / 8.4（新语法，推荐）
+      ## 从库：配置复制（MySQL 8.0.23+ 使用 SOURCE 替代 MASTER）
       CHANGE REPLICATION SOURCE TO
-        SOURCE_HOST='10.0.0.1',
+        SOURCE_HOST='192.168.1.100',
         SOURCE_PORT=3306,
-        SOURCE_USER='repl',
-        SOURCE_PASSWORD='ReplP@ss!',
-        SOURCE_AUTO_POSITION=1;
+        SOURCE_USER='replicator',
+        SOURCE_PASSWORD='ReplicaPass123!',
+        SOURCE_AUTO_POSITION=1;         # 使用 GTID 自动定位
 
-      START REPLICA;   -- 8.0.22+（旧: START SLAVE）
+      ## MySQL 5.7 / 8.0.22 及以下写法
+      CHANGE MASTER TO
+        MASTER_HOST='192.168.1.100',
+        MASTER_PORT=3306,
+        MASTER_USER='replicator',
+        MASTER_PASSWORD='ReplicaPass123!',
+        MASTER_AUTO_POSITION=1;
+
+      ## 启动/停止复制
+      START REPLICA;           # MySQL 8.0.22+（旧版用 START SLAVE）
+      STOP REPLICA;
+      START SLAVE;             # MySQL 5.7 / 8.0.22以下
+      STOP SLAVE;
 
       ## 查看复制状态
-      SHOW REPLICA STATUS\G    -- 8.0.22+（旧: SHOW SLAVE STATUS\G）
-      -- 关键字段:
-      --   Replica_IO_Running: Yes
-      --   Replica_SQL_Running: Yes
-      --   Seconds_Behind_Source: 0   (延迟秒数)
-      --   Last_Error: (空=正常)
+      SHOW REPLICA STATUS\G    # MySQL 8.0.22+
+      SHOW SLAVE STATUS\G      # MySQL 5.7 / 8.0.22以下
+      # 关注字段:
+      # Replica_IO_Running / Slave_IO_Running: Yes
+      # Replica_SQL_Running / Slave_SQL_Running: Yes
+      # Seconds_Behind_Source / Seconds_Behind_Master: 0（延迟秒数）
+      # Last_Error: 空（无错误）
 
-      ## 跳过复制错误（谨慎使用）
-      -- GTID模式下跳过一个事务
-      STOP REPLICA SQL_THREAD;
-      SET GTID_NEXT='xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:N';
-      BEGIN; COMMIT;
-      SET GTID_NEXT='AUTOMATIC';
-      START REPLICA SQL_THREAD;
-
-  - title: "MySQL慢查询分析与优化"
+  - title: "性能优化 - EXPLAIN 和慢查询"
     type: mysql
-    tags: ["slow-query", "explain", "index", "performance", "optimization"]
-    source: "MySQL官方文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html"
-    version: "MySQL 5.7, 8.0, 8.4"
+    tags: [explain, slow-query, performance, index, optimization, query]
+    source: "MySQL 8.0 官方参考手册 - EXPLAIN"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/explain.html"
+    version: "5.7,8.0,8.4"
     content: |
-      # MySQL 慢查询分析
+      # MySQL 性能优化
+      # EXPLAIN: https://dev.mysql.com/doc/refman/8.0/en/explain.html
+      # 慢查询: https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html
 
-      ## 1. 开启慢查询日志（动态修改，无需重启）
-      SET GLOBAL slow_query_log = ON;
-      SET GLOBAL slow_query_log_file = '/var/log/mysql/slow.log';
-      SET GLOBAL long_query_time = 1;           -- 超过1秒记录
-      SET GLOBAL log_queries_not_using_indexes = ON;   -- 记录全表扫描
-      SET GLOBAL log_throttle_queries_not_using_indexes = 10;  -- 限制每分钟记录次数
+      ## EXPLAIN 执行计划分析
+      EXPLAIN SELECT * FROM orders WHERE user_id = 100;
+      EXPLAIN FORMAT=JSON SELECT * FROM orders WHERE user_id = 100;  # 更详细
+      EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 100;      # 实际执行（MySQL 8.0.18+）
 
-      -- my.cnf持久化配置
-      slow_query_log = 1
-      slow_query_log_file = /var/log/mysql/slow.log
-      long_query_time = 1
-      log_queries_not_using_indexes = 1
+      # EXPLAIN 关键字段说明:
+      # type（从好到差）:
+      #   system > const > eq_ref > ref > range > index > ALL
+      #   ALL 表示全表扫描，需要添加索引优化
+      # key: 实际使用的索引（NULL 表示未使用索引）
+      # rows: 估计需要扫描的行数（越小越好）
+      # Extra:
+      #   Using index      - 覆盖索引（最优）
+      #   Using where      - 有 WHERE 过滤（在 engine 层过滤后还要 server 层过滤）
+      #   Using filesort   - 需要额外排序（尽量避免）
+      #   Using temporary  - 使用临时表（尽量避免）
 
-      ## 2. 分析慢查询日志
-      # mysqldumpslow（内置工具）
-      mysqldumpslow -s t -t 10 /var/log/mysql/slow.log  # 按总时间排序，取Top10
-      mysqldumpslow -s c -t 10 /var/log/mysql/slow.log  # 按执行次数排序
+      ## 慢查询日志配置
+      # my.cnf 配置（永久）
+      # slow_query_log = ON
+      # slow_query_log_file = /var/log/mysql/slow.log
+      # long_query_time = 1               # 超过1秒记录
+      # log_queries_not_using_indexes = ON # 未使用索引的查询也记录
 
-      # pt-query-digest（Percona Toolkit，推荐）
-      pt-query-digest /var/log/mysql/slow.log | head -200
-      pt-query-digest --since=24h /var/log/mysql/slow.log   # 最近24小时
+      # 动态开启（无需重启，重启后失效）
+      SET GLOBAL slow_query_log = 'ON';
+      SET GLOBAL long_query_time = 1;
+      SET GLOBAL log_queries_not_using_indexes = 'ON';
+      SHOW VARIABLES LIKE 'slow_query_log_file';  # 查看日志路径
 
-      ## 3. EXPLAIN 分析执行计划
-      EXPLAIN SELECT * FROM orders o
-        JOIN users u ON o.user_id = u.id
-       WHERE o.status = 'pending'
-         AND o.created_at > '2024-01-01'\G
+      ## 分析慢查询日志（mysqldumpslow）
+      mysqldumpslow -s t -t 10 /var/log/mysql/slow.log    # 按总时间排序取前10
+      mysqldumpslow -s c -t 10 /var/log/mysql/slow.log    # 按出现次数排序
+      mysqldumpslow -s r -t 10 /var/log/mysql/slow.log    # 按返回行数排序
 
-      -- 关键字段解读:
-      -- type:   const>eq_ref>ref>range>index>ALL(全表扫描=需优化)
-      -- key:    实际使用的索引
-      -- rows:   预估扫描行数（越小越好）
-      -- Extra:  Using index(覆盖索引) / Using filesort(排序需优化)
-      --         Using temporary(需优化) / Using where(有过滤)
-
-      -- MySQL 8.0+ EXPLAIN ANALYZE（实际执行+时间统计）
-      EXPLAIN ANALYZE SELECT * FROM orders WHERE status='pending'\G
-
-      ## 4. 索引管理
-      -- 添加索引（小表直接ADD，大表使用pt-osc/gh-ost在线变更）
-      ALTER TABLE orders ADD INDEX idx_status_created (status, created_at);
-      ALTER TABLE orders ADD INDEX idx_user_status (user_id, status, created_at);
-
-      -- 查看索引使用情况（information_schema）
-      SELECT table_name, index_name, seq_in_index, column_name,
-             cardinality, nullable
-        FROM information_schema.STATISTICS
-       WHERE table_schema = 'mydb'
-         AND table_name = 'orders'
-       ORDER BY table_name, index_name, seq_in_index;
-
-      -- 查看未使用的索引（8.0 performance_schema）
-      SELECT object_schema, object_name, index_name
-        FROM performance_schema.table_io_waits_summary_by_index_usage
-       WHERE index_name IS NOT NULL
-         AND count_star = 0
-         AND object_schema NOT IN ('mysql','performance_schema','information_schema')
-       ORDER BY object_schema, object_name;
-
-      -- 大表在线DDL（推荐pt-online-schema-change）
-      pt-online-schema-change \
-        --alter "ADD INDEX idx_status (status)" \
-        --execute \
-        D=mydb,t=orders,u=root,p=pass \
-        --host=localhost
-
-  - title: "MySQL InnoDB 关键参数调优"
-    type: mysql
-    tags: ["innodb", "buffer-pool", "redo-log", "tuning", "my.cnf"]
-    source: "MySQL官方文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/innodb-parameters.html"
-    version: "MySQL 5.7, 8.0, 8.4"
-    content: |
-      # MySQL InnoDB 关键参数（my.cnf）
-
-      [mysqld]
-      # ===== InnoDB Buffer Pool（最关键参数）=====
-      # 建议设为物理内存的70-80%（专用MySQL服务器）
-      innodb_buffer_pool_size = 16G
-      # 多实例（内存>8G时，每个实例1-2G）
-      innodb_buffer_pool_instances = 8
-      # 预热：启动时自动加载热数据（8.0 GA）
-      innodb_buffer_pool_dump_at_shutdown = ON
-      innodb_buffer_pool_load_at_startup  = ON
-
-      # ===== Redo Log =====
-      # MySQL 8.0.30+ innodb_redo_log_capacity 替代旧参数
-      innodb_redo_log_capacity = 4G          # 8.0.30+
-      # MySQL 5.7 / 8.0.29:
-      # innodb_log_file_size = 1G
-      # innodb_log_files_in_group = 2
-
-      # ===== 事务与持久性 =====
-      innodb_flush_log_at_trx_commit = 1     # 1=每次提交刷盘（ACID）; 2=性能优先
-      sync_binlog = 1                        # 1=每次提交刷binlog（ACID）
-      innodb_flush_method = O_DIRECT         # 绕过OS缓存（Linux）
-      innodb_doublewrite = ON                # 双写缓冲（防止部分页写入）
-
-      # ===== 并发 =====
-      innodb_thread_concurrency = 0          # 0=自动（推荐）
-      innodb_read_io_threads  = 4
-      innodb_write_io_threads = 4
-      innodb_io_capacity      = 2000         # SSD：1000-4000；HDD：200
-      innodb_io_capacity_max  = 4000
-
-      # ===== 锁与超时 =====
-      innodb_lock_wait_timeout = 10          # 锁等待超时（秒）
-      innodb_deadlock_detect   = ON          # 死锁检测
-      lock_wait_timeout = 30
-
-      # ===== 表空间 =====
-      innodb_file_per_table  = ON            # 每表独立表空间（推荐）
-      innodb_stats_on_metadata = OFF         # 禁用元数据统计（减少LOCK）
-
-      # ===== 连接 =====
-      max_connections        = 500
-      wait_timeout           = 600
-      interactive_timeout    = 600
-      max_allowed_packet     = 64M
-
-      # ===== 字符集（MySQL 8.0默认utf8mb4）=====
-      character-set-server   = utf8mb4
-      collation-server       = utf8mb4_0900_ai_ci   # 8.0默认（不区分大小写，支持emoji）
-      # collation-server     = utf8mb4_unicode_ci   # 5.7兼容
-
-      # ===== 日志 =====
-      log_error              = /var/log/mysql/error.log
-      log_error_verbosity    = 2
-      general_log            = OFF           # 生产关闭（记录所有SQL，性能影响大）
-      slow_query_log         = ON
-      long_query_time        = 1
-
-      ## 查看当前InnoDB状态
-      SHOW ENGINE INNODB STATUS\G
-      SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool%';
-      SELECT @@innodb_buffer_pool_size/1024/1024/1024 AS 'BufferPool(GB)';
-
-  - title: "MySQL在线DDL（大表变更）"
-    type: mysql
-    tags: ["ddl", "alter", "online", "pt-osc", "gh-ost", "large-table"]
-    source: "MySQL官方文档 + Percona/GitHub工具文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl.html"
-    version: "MySQL 5.7, 8.0, 8.4"
-    content: |
-      # MySQL 在线DDL — 大表变更方案
-
-      ## 1. 原生 Online DDL（ALGORITHM=INPLACE）
-      -- MySQL 5.6+ 支持，部分操作可以不锁表
-      -- 语法：ALGORITHM=INPLACE, LOCK=NONE（最小锁）
-      ALTER TABLE orders
-        ADD COLUMN remark VARCHAR(500),
-        ALGORITHM=INPLACE, LOCK=NONE;
-
-      -- 检查哪些操作支持 INPLACE（官方文档 Online DDL Operations）
-      -- 支持INPLACE+LOCK=NONE: 添加列、删除列、添加普通索引等
-      -- 需要LOCK=SHARED: 添加全文索引等
-      -- 需要LOCK=EXCLUSIVE(锁表): 更改列类型（隐式COPY）
-
-      ## 2. pt-online-schema-change（小表<100GB推荐）
-      -- 原理：创建影子表 → 同步存量数据 → 触发器同步增量 → rename交换
-      pt-online-schema-change \
-        --host=127.0.0.1 \
-        --user=root --password='xxx' \
-        --alter="ADD COLUMN remark VARCHAR(500), ADD INDEX idx_remark(remark(100))" \
-        --execute \
-        --progress=time,30 \          # 每30s输出进度
-        --max-load="Threads_running=50" \   # 负载保护
-        --critical-load="Threads_running=100" \
-        --chunk-size=1000 \           # 每批处理行数
-        --sleep=0.1 \                 # 每批间隔（减少主从延迟）
-        D=mydb,t=orders
-
-      ## 3. gh-ost（GitHub开源，生产环境大表首选）
-      -- 原理：通过binlog流同步，不使用触发器，对主库影响更小
-      gh-ost \
-        --user="root" --password="xxx" \
-        --host=127.0.0.1 \
-        --database="mydb" --table="orders" \
-        --alter="ADD COLUMN remark VARCHAR(500)" \
-        --allow-on-master \           # 直接在主库执行（也可在从库）
-        --chunk-size=1000 \
-        --max-lag-millis=1500 \       # 主从延迟>1.5s暂停
-        --max-load="Threads_running=30" \
-        --throttle-control-replicas="10.0.0.2:3306" \
-        --execute
-
-      ## 4. 变更前检查（必做）
-      -- 查看表大小
-      SELECT table_schema, table_name,
-             ROUND(data_length/1024/1024/1024, 2) AS 'Data(GB)',
-             ROUND(index_length/1024/1024/1024, 2) AS 'Index(GB)',
-             table_rows
-        FROM information_schema.TABLES
-       WHERE table_schema = 'mydb'
-         AND table_name = 'orders';
-
-      -- 查看当前锁情况
-      SELECT * FROM performance_schema.data_locks\G
-      SELECT * FROM information_schema.INNODB_TRX\G
-
-  - title: "MySQL性能诊断速查"
-    type: mysql
-    tags: ["performance", "processlist", "status", "innodb", "diagnosis"]
-    source: "MySQL官方文档"
-    source_url: "https://dev.mysql.com/doc/refman/8.0/en/performance-schema.html"
-    version: "MySQL 5.7, 8.0, 8.4"
-    content: |
-      # MySQL 性能诊断速查
-
-      ## 查看当前连接与慢SQL
+      ## 查看当前正在执行的 SQL（找慢查询）
       SHOW PROCESSLIST;
-      -- 或更详细（含完整SQL）
-      SELECT id, user, host, db, command, time, state, info
-        FROM information_schema.PROCESSLIST
-       WHERE command != 'Sleep'
-         AND time > 5
-       ORDER BY time DESC;
+      SHOW FULL PROCESSLIST;            # 显示完整 SQL
+      SELECT * FROM information_schema.processlist WHERE command != 'Sleep' ORDER BY time DESC;
 
-      -- 8.0+ performance_schema（推荐）
-      SELECT thread_id, processlist_id, processlist_user, processlist_host,
-             processlist_db, processlist_command, processlist_time,
-             processlist_state, processlist_info
-        FROM performance_schema.threads
-       WHERE processlist_command != 'Sleep'
-       ORDER BY processlist_time DESC;
+      ## 索引优化
+      # 查看表的索引使用情况（MySQL 8.0）
+      SELECT * FROM sys.schema_unused_indexes WHERE object_schema = 'mydb';
 
-      ## 杀掉长事务/慢查询
-      KILL QUERY  <process_id>;   -- 仅终止SQL，保持连接
-      KILL        <process_id>;   -- 终止连接
+  - title: "常用状态和监控查询"
+    type: mysql
+    tags: [status, monitoring, variables, connections, locks, innodb]
+    source: "MySQL 8.0 官方参考手册 - SHOW STATUS"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/show-status.html"
+    version: "5.7,8.0,8.4"
+    content: |
+      # MySQL 状态监控
+      # 官方文档: https://dev.mysql.com/doc/refman/8.0/en/show-status.html
 
-      ## 查看InnoDB锁等待
-      SELECT r.trx_id AS waiting_trx_id,
-             r.trx_mysql_thread_id AS waiting_thread,
-             r.trx_query AS waiting_query,
-             b.trx_id AS blocking_trx_id,
-             b.trx_mysql_thread_id AS blocking_thread,
-             b.trx_query AS blocking_query
-        FROM information_schema.INNODB_LOCK_WAITS w
-        JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id
-        JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id;
+      ## 连接和线程
+      SHOW STATUS LIKE 'Threads_connected';   # 当前连接数
+      SHOW STATUS LIKE 'Max_used_connections'; # 历史最大连接数
+      SHOW VARIABLES LIKE 'max_connections';   # 最大连接数配置
+      SHOW STATUS LIKE 'Connection_errors%';   # 连接错误统计
 
-      -- 8.0+ 新版（performance_schema）
-      SELECT * FROM performance_schema.data_lock_waits\G
+      ## 查询统计
+      SHOW STATUS LIKE 'Questions';           # 总查询数
+      SHOW STATUS LIKE 'Com_select';          # SELECT 数量
+      SHOW STATUS LIKE 'Com_insert';          # INSERT 数量
+      SHOW STATUS LIKE 'Slow_queries';        # 慢查询数量
 
-      ## 全局状态统计
-      -- QPS
-      SHOW GLOBAL STATUS LIKE 'Questions';
-      SHOW GLOBAL STATUS LIKE 'Com_select';
-      SHOW GLOBAL STATUS LIKE 'Com_insert';
-      SHOW GLOBAL STATUS LIKE 'Com_update';
-      SHOW GLOBAL STATUS LIKE 'Com_delete';
+      ## InnoDB 状态
+      SHOW ENGINE INNODB STATUS\G             # InnoDB 详细状态（含死锁信息）
+      SHOW STATUS LIKE 'InnoDB_buffer_pool%'; # Buffer Pool 命中率
 
-      -- 连接
-      SHOW GLOBAL STATUS LIKE 'Threads_connected';
-      SHOW GLOBAL STATUS LIKE 'Threads_running';
-      SHOW GLOBAL STATUS LIKE 'Max_used_connections';
-      SHOW GLOBAL STATUS LIKE 'Aborted_connects';
+      ## 查看表大小（前10大表）
+      SELECT
+        table_schema AS `db`,
+        table_name,
+        ROUND(data_length / 1024 / 1024, 2)  AS `data_MB`,
+        ROUND(index_length / 1024 / 1024, 2) AS `index_MB`,
+        ROUND((data_length + index_length) / 1024 / 1024, 2) AS `total_MB`,
+        table_rows
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+      ORDER BY data_length + index_length DESC
+      LIMIT 10;
 
-      -- InnoDB Buffer Pool命中率（>99%为佳）
-      SELECT ROUND(
-        (1 - (
-          (SELECT variable_value FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_reads') /
-          (SELECT variable_value FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_read_requests')
-        )) * 100, 2
-      ) AS 'BufferPool_HitRate(%)';
+      ## 查看当前锁等待
+      SELECT
+        r.trx_id waiting_trx_id,
+        r.trx_mysql_thread_id waiting_thread,
+        r.trx_query waiting_query,
+        b.trx_id blocking_trx_id,
+        b.trx_mysql_thread_id blocking_thread
+      FROM information_schema.innodb_lock_waits w
+      INNER JOIN information_schema.innodb_trx b ON b.trx_id = w.blocking_trx_id
+      INNER JOIN information_schema.innodb_trx r ON r.trx_id = w.requesting_trx_id;
 
-      ## 查看表/索引统计信息
-      ANALYZE TABLE orders;    -- 更新统计信息（优化器依赖）
-      OPTIMIZE TABLE orders;   -- 重建表（InnoDB会RECREATE，慎用大表）
+      ## 查看变量配置
+      SHOW VARIABLES LIKE 'innodb_buffer_pool_size';  # 缓冲池大小（通常设为物理内存60-80%）
+      SHOW VARIABLES LIKE 'innodb_log_file_size';
+      SHOW VARIABLES LIKE 'character_set%';           # 字符集配置
+      SHOW VARIABLES LIKE 'collation%';
+
+  - title: "表维护 - OPTIMIZE / ANALYZE / CHECK"
+    type: mysql
+    tags: [optimize, analyze, check, repair, maintenance, fragmentation]
+    source: "MySQL 8.0 官方参考手册 - 表维护"
+    source_url: "https://dev.mysql.com/doc/refman/8.0/en/optimize-table.html"
+    version: "5.7,8.0,8.4"
+    content: |
+      # 表维护
+      # OPTIMIZE TABLE: https://dev.mysql.com/doc/refman/8.0/en/optimize-table.html
+      # ANALYZE TABLE: https://dev.mysql.com/doc/refman/8.0/en/analyze-table.html
+
+      ## ANALYZE TABLE（更新统计信息，让优化器做出更好的执行计划）
+      ANALYZE TABLE orders;
+      ANALYZE TABLE mydb.orders;
+      # 注意: InnoDB 会在后台自动维护统计信息，手动执行用于索引变化后立即更新
+
+      ## OPTIMIZE TABLE（整理碎片，回收空间）
+      OPTIMIZE TABLE orders;
+      # 适用场景: 大量 DELETE/UPDATE 后产生碎片
+      # 注意: InnoDB 的 OPTIMIZE TABLE 实际上是重建表（ALTER TABLE + RENAME），
+      #       执行期间会锁表（大表建议用 pt-online-schema-change）
+      # MyISAM: 真正的碎片整理
+
+      ## CHECK TABLE（检查表完整性）
+      CHECK TABLE orders;
+      CHECK TABLE orders EXTENDED;        # 更彻底的检查
+
+      ## REPAIR TABLE（修复损坏的表，仅 MyISAM/ARCHIVE）
+      REPAIR TABLE orders;
+      # InnoDB 损坏时需要用 innodb_force_recovery 参数恢复，不能用 REPAIR
+
+      ## 查看表碎片率
+      SELECT
+        table_name,
+        ROUND(data_free / 1024 / 1024, 2) AS `free_MB`,
+        ROUND(data_length / 1024 / 1024, 2) AS `data_MB`,
+        ROUND(data_free / (data_length + data_free) * 100, 2) AS `frag_pct`
+      FROM information_schema.tables
+      WHERE table_schema = 'mydb'
+        AND data_free > 0
+      ORDER BY data_free DESC;

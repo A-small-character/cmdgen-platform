@@ -1,184 +1,517 @@
+# 网络设备命令知识库
+# 华为 VRP: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
+# Cisco IOS/IOS-XE: https://www.cisco.com/c/en/us/support/ios-nx-os-software/
+# H3C Comware 7: https://www.h3c.com/cn/Support/Resource_Center/
+
 knowledge_items:
-  - title: "华为交换机VLAN配置"
+
+  # ══════════════════════════════════════════════════════
+  # VLAN 配置
+  # ══════════════════════════════════════════════════════
+
+  - title: "VLAN 配置（华为 VRP）"
     type: network
     vendor: huawei
-    version: "VRP V200R010+"
-    tags: ["vlan", "huawei", "switch", "interface"]
+    tags: [vlan, huawei, vrp, switch, trunk, access, hybrid]
+    source: "华为企业网络产品文档 - VRP VLAN 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
     content: |
-      # 华为交换机 VLAN 配置
+      # 华为交换机 VLAN 配置（VRP 系统）
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
 
-      ## 创建VLAN并配置接口（Huawei VRP）
-
-      ### 创建VLAN
+      ## 创建 VLAN
       system-view
-      vlan batch 100 200 300
+      vlan 100
+       description SERVERS
+      quit
+      # 或批量创建
+      vlan batch 100 200 300 400
 
-      ### 配置Access接口
+      ## Access 接口（连接终端设备，发出时去 Tag）
       interface GigabitEthernet0/0/1
        port link-type access
        port default vlan 100
-       quit
+       description Server-1
+      quit
 
-      ### 配置Trunk接口
-      interface GigabitEthernet0/0/2
+      ## Trunk 接口（连接交换机/路由器，允许多个 VLAN 通过，携带 Tag）
+      interface GigabitEthernet0/0/24
        port link-type trunk
        port trunk pvid vlan 1
        port trunk allow-pass vlan 100 200 300
-       quit
+       # 允许所有 VLAN:
+       # port trunk allow-pass vlan all
+      quit
 
-      ### 配置Hybrid接口
-      interface GigabitEthernet0/0/3
+      ## Hybrid 接口（华为特有，可同时配置 tagged 和 untagged）
+      interface GigabitEthernet0/0/2
        port link-type hybrid
        port hybrid pvid vlan 100
        port hybrid untagged vlan 100
        port hybrid tagged vlan 200 300
-       quit
+      quit
 
-      ### 配置VLANIF（三层网关）
+      ## VLANIF 三层接口（VLAN 网关）
       interface Vlanif100
        ip address 192.168.100.1 255.255.255.0
-       quit
+       description SERVERS-GW
+      quit
 
-      ### 查看VLAN信息
+      ## 查看 VLAN 信息
       display vlan
       display vlan 100 verbose
+      display port vlan active
       display interface GigabitEthernet0/0/1
 
-  - title: "华为交换机OSPF配置"
-    type: network
-    vendor: huawei
-    version: "VRP V200R010+"
-    tags: ["ospf", "routing", "huawei"]
-    content: |
-      # 华为交换机/路由器 OSPF 配置
-
-      ## 基本OSPF配置
-      system-view
-      ospf 1 router-id 1.1.1.1
-       area 0
-        network 192.168.1.0 0.0.0.255
-        network 10.0.0.0 0.0.0.3
-       quit
-      quit
-
-      ## 配置OSPF认证
-      ospf 1
-       area 0
-        authentication-mode md5 1 cipher Admin@123
-       quit
-      quit
-
-      ## 配置OSPF被动接口（不发Hello包）
-      ospf 1
-       silent-interface GigabitEthernet0/0/3
-      quit
-
-      ## 查看OSPF状态
-      display ospf peer
-      display ospf routing
-      display ospf interface
-
-  - title: "Cisco交换机VLAN配置"
+  - title: "VLAN 配置（Cisco IOS）"
     type: network
     vendor: cisco
-    version: "IOS 15.x, IOS-XE 16.x+"
-    tags: ["vlan", "cisco", "switch"]
+    tags: [vlan, cisco, ios, switch, trunk, access, svi]
+    source: "Cisco IOS Configuration Guide - VLANs"
+    source_url: "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9200/software/release/17-6/configuration_guide/vlan/b_176_vlan_9200_cg/configuring_vlans.html"
+    version: "IOS 15.x, IOS-XE 16.x 及以上"
     content: |
-      # Cisco 交换机 VLAN 配置
+      # Cisco 交换机 VLAN 配置（IOS/IOS-XE）
+      # 官方文档: https://www.cisco.com/c/en/us/support/docs/lan-switching/ethernet/10023-3.html
 
-      ## 创建VLAN
-      conf t
+      ## 创建 VLAN（VLAN 数据库模式）
+      configure terminal
       vlan 100
        name SERVERS
       vlan 200
        name USERS
       exit
 
-      ## 配置Access接口
+      ## Access 接口
       interface GigabitEthernet1/0/1
+       description Server-1
        switchport mode access
        switchport access vlan 100
        spanning-tree portfast
        exit
 
-      ## 配置Trunk接口
+      ## Trunk 接口
       interface GigabitEthernet1/0/48
+       description Uplink-to-Core
        switchport mode trunk
        switchport trunk native vlan 1
        switchport trunk allowed vlan 100,200,300
        exit
 
-      ## 配置SVI（三层网关）
+      ## SVI 三层接口（Switched Virtual Interface）
       interface Vlan100
+       description SERVERS-GW
        ip address 192.168.100.1 255.255.255.0
        no shutdown
        exit
 
-      ## 查看VLAN信息
+      ## 查看 VLAN
       show vlan brief
+      show vlan id 100
       show interfaces GigabitEthernet1/0/1 switchport
       show interfaces trunk
 
-  - title: "H3C交换机VLAN配置"
+  - title: "VLAN 配置（H3C Comware 7）"
     type: network
     vendor: h3c
+    tags: [vlan, h3c, comware, switch, trunk, access]
+    source: "H3C Comware 7 配置指南 - VLAN"
+    source_url: "https://www.h3c.com/cn/Support/Resource_Center/CN/Switches/Catalog/S5130/"
     version: "Comware V7"
-    tags: ["vlan", "h3c", "switch"]
     content: |
-      # H3C 交换机 VLAN 配置（Comware V7）
+      # H3C 交换机 VLAN 配置（Comware 7）
+      # 官方文档: H3C Comware 7 Layer 2 - LAN Access Configuration Guide
 
-      ## 创建VLAN
+      ## 创建 VLAN
       system-view
       vlan 100
        name SERVERS
        quit
 
-      ## 配置Access接口
+      ## Access 接口
       interface GigabitEthernet1/0/1
+       description Server-1
        port link-type access
        port access vlan 100
        quit
 
-      ## 配置Trunk接口
+      ## Trunk 接口
       interface GigabitEthernet1/0/24
+       description Uplink
        port link-type trunk
        port trunk permit vlan 100 200 300
+       # 或允许所有 VLAN
+       # port trunk permit vlan all
        quit
 
-      ## 配置VLAN接口（三层）
+      ## VLAN 接口（三层网关）
       interface Vlan-interface 100
+       description SERVERS-GW
        ip address 192.168.100.1 24
        quit
 
       ## 查看
       display vlan 100
+      display port trunk
       display interface GigabitEthernet1/0/1
 
-  - title: "Palo Alto防火墙安全策略"
+  # ══════════════════════════════════════════════════════
+  # 路由协议
+  # ══════════════════════════════════════════════════════
+
+  - title: "OSPF 配置（华为 VRP）"
     type: network
-    vendor: paloalto
-    version: "PAN-OS 10.x+"
-    tags: ["firewall", "security-policy", "paloalto", "nat"]
+    vendor: huawei
+    tags: [ospf, routing, area, huawei, authentication]
+    source: "华为企业网络产品文档 - OSPF 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
     content: |
-      # Palo Alto 防火墙配置
+      # 华为设备 OSPF 配置
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
 
-      ## CLI配置安全策略
-      configure
-      set rulebase security rules "Allow-Web" from trust to untrust
-      set rulebase security rules "Allow-Web" source any
-      set rulebase security rules "Allow-Web" destination any
-      set rulebase security rules "Allow-Web" application [web-browsing ssl]
-      set rulebase security rules "Allow-Web" service application-default
-      set rulebase security rules "Allow-Web" action allow
-      commit
+      ## 基础 OSPF（单区域，Area 0）
+      system-view
+      ospf 1 router-id 1.1.1.1
+       area 0.0.0.0
+        network 192.168.1.0 0.0.0.255
+        network 10.0.0.0 0.0.0.3
+       quit
+      quit
 
-      ## 配置NAT规则
-      set rulebase nat rules "Inside-NAT" from trust to untrust
-      set rulebase nat rules "Inside-NAT" source 192.168.0.0/16
-      set rulebase nat rules "Inside-NAT" nat-type ipv4
-      set rulebase nat rules "Inside-NAT" source-translation dynamic-ip-and-port interface-address interface ethernet1/1
-      commit
+      ## MD5 认证
+      ospf 1
+       area 0.0.0.0
+        authentication-mode md5 1 cipher Admin@123
+       quit
+      quit
 
-      ## 查看安全策略
-      show running security-policy
-      show session all
+      ## Stub 区域
+      ospf 1
+       area 1
+        stub
+       quit
+      quit
+
+      ## 被动接口（不发 Hello 包，用于连接终端网段）
+      ospf 1
+       silent-interface GigabitEthernet0/0/0
+      quit
+
+      ## 修改 OSPF 接口 Cost
+      interface GigabitEthernet0/0/1
+       ospf cost 100
+      quit
+
+      ## 查看 OSPF 状态
+      display ospf peer
+      display ospf peer brief
+      display ospf routing
+      display ospf lsdb
+      display ospf interface
+
+  - title: "OSPF 配置（Cisco IOS）"
+    type: network
+    vendor: cisco
+    tags: [ospf, routing, area, cisco, authentication]
+    source: "Cisco IOS IP Routing: OSPF Configuration Guide"
+    source_url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/configuration/xe-16/iro-xe-16-book/iro-cfg.html"
+    version: "IOS 15.x, IOS-XE 16.x 及以上"
+    content: |
+      # Cisco 设备 OSPF 配置
+      # 官方文档: https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7039-1.html
+
+      ## 基础 OSPF
+      configure terminal
+      router ospf 1
+       router-id 1.1.1.1
+       network 192.168.1.0 0.0.0.255 area 0
+       network 10.0.0.0 0.0.0.3 area 0
+       exit
+
+      ## MD5 认证（接口级别）
+      interface GigabitEthernet0/0
+       ip ospf authentication message-digest
+       ip ospf message-digest-key 1 md5 Admin@123
+       exit
+
+      ## 被动接口
+      router ospf 1
+       passive-interface GigabitEthernet0/1
+       exit
+
+      ## 查看 OSPF
+      show ip ospf neighbor
+      show ip ospf database
+      show ip route ospf
+
+  - title: "BGP 配置（华为 VRP）"
+    type: network
+    vendor: huawei
+    tags: [bgp, routing, ebgp, ibgp, huawei, as]
+    source: "华为企业网络产品文档 - BGP 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
+    content: |
+      # 华为设备 BGP 配置
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
+
+      ## 基础 BGP 配置
+      system-view
+      bgp 65001                                   # 本地 AS 号
+       router-id 1.1.1.1
+       # eBGP 对等体（不同 AS）
+       peer 203.0.113.1 as-number 65002
+       peer 203.0.113.1 description ISP-Peer
+       peer 203.0.113.1 ebgp-max-hop 2            # 非直连 eBGP 需配置
+       # iBGP 对等体（相同 AS）
+       peer 10.0.0.2 as-number 65001
+       peer 10.0.0.2 connect-interface LoopBack0
+       # 发布路由
+       network 192.168.100.0 255.255.255.0
+       ipv4-family unicast
+        peer 203.0.113.1 enable
+        peer 10.0.0.2 enable
+       quit
+      quit
+
+      ## 查看 BGP 状态
+      display bgp peer
+      display bgp routing-table
+      display bgp routing-table peer 203.0.113.1 received-routes
+      display bgp routing-table peer 203.0.113.1 advertised-routes
+
+  # ══════════════════════════════════════════════════════
+  # ACL
+  # ══════════════════════════════════════════════════════
+
+  - title: "ACL 访问控制列表（华为 VRP）"
+    type: network
+    vendor: huawei
+    tags: [acl, access-control, filter, security, huawei]
+    source: "华为企业网络产品文档 - ACL 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
+    content: |
+      # 华为设备 ACL（访问控制列表）
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
+      # ACL 编号规范:
+      # 2000-2999: 基本 ACL（只匹配源IP）
+      # 3000-3999: 高级 ACL（匹配源/目的IP、协议、端口）
+      # 4000-4999: 二层 ACL（匹配 MAC 地址）
+
+      ## 基本 ACL（只匹配源 IP）
+      system-view
+      acl number 2000
+       rule 5  permit source 192.168.1.0 0.0.0.255   # 允许 192.168.1.0/24
+       rule 10 deny   source any                       # 拒绝其他
+      quit
+
+      ## 高级 ACL（匹配源/目的 IP + 协议 + 端口）
+      acl number 3000
+       rule 5  permit tcp source 192.168.1.0 0.0.0.255 destination 10.0.0.1 0 destination-port eq 80
+       rule 10 permit tcp source 192.168.1.0 0.0.0.255 destination 10.0.0.1 0 destination-port eq 443
+       rule 15 deny   ip
+      quit
+
+      ## 在接口应用 ACL（入方向过滤）
+      interface GigabitEthernet0/0/1
+       traffic-filter inbound acl 3000
+      quit
+
+      ## 查看 ACL
+      display acl 3000
+      display acl all
+      display traffic-filter applied-record
+
+  - title: "ACL 配置（Cisco IOS）"
+    type: network
+    vendor: cisco
+    tags: [acl, access-list, filter, security, cisco]
+    source: "Cisco IOS Security Configuration Guide - ACL"
+    source_url: "https://www.cisco.com/c/en/us/support/docs/security/ios-firewall/23602-confaccesslists.html"
+    version: "IOS 15.x, IOS-XE 16.x 及以上"
+    content: |
+      # Cisco ACL 配置
+      # 官方文档: https://www.cisco.com/c/en/us/support/docs/security/ios-firewall/23602-confaccesslists.html
+
+      ## 标准 ACL（编号 1-99 或 1300-1999，只匹配源 IP）
+      configure terminal
+      ip access-list standard ALLOW-LAN
+       permit 192.168.1.0 0.0.0.255
+       deny   any
+       exit
+
+      ## 扩展 ACL（编号 100-199 或 2000-2699，匹配源/目的+协议+端口）
+      ip access-list extended WEB-FILTER
+       permit tcp 192.168.1.0 0.0.0.255 host 10.0.0.1 eq 80
+       permit tcp 192.168.1.0 0.0.0.255 host 10.0.0.1 eq 443
+       deny   ip any any log
+       exit
+
+      ## 在接口应用 ACL
+      interface GigabitEthernet0/0
+       ip access-group WEB-FILTER in     # in: 入方向; out: 出方向
+       exit
+
+      ## 查看 ACL
+      show ip access-lists
+      show ip access-lists WEB-FILTER
+      show ip interface GigabitEthernet0/0 | include access list
+
+  # ══════════════════════════════════════════════════════
+  # NAT
+  # ══════════════════════════════════════════════════════
+
+  - title: "NAT 配置（华为 VRP）"
+    type: network
+    vendor: huawei
+    tags: [nat, pat, snat, dnat, huawei, internet]
+    source: "华为企业网络产品文档 - NAT 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
+    content: |
+      # 华为设备 NAT 配置
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
+
+      ## Easy IP（出口 NAT，使用接口 IP，适合动态公网 IP）
+      system-view
+      # 定义内网地址范围（基本 ACL）
+      acl number 2000
+       rule 5 permit source 192.168.0.0 0.0.255.255
+      quit
+      # 在外网接口开启 Easy IP
+      interface GigabitEthernet0/0/0
+       nat outbound 2000
+      quit
+
+      ## Static NAT（1:1 静态映射）
+      # 将内网 192.168.1.10 映射到公网 203.0.113.10
+      nat static global 203.0.113.10 inside 192.168.1.10
+
+      ## NAPT / PAT（地址池 + 端口复用）
+      # 创建 NAT 地址池
+      nat address-group 1 203.0.113.20 203.0.113.30
+      # 在外网接口应用（PAT 模式）
+      interface GigabitEthernet0/0/0
+       nat outbound 2000 address-group 1 no-pat   # no-pat: 不复用端口（1:1）
+       # 或 PAT 模式（端口复用，节省公网 IP）
+       nat outbound 2000 address-group 1
+      quit
+
+      ## 查看 NAT
+      display nat session all
+      display nat static
+      display nat outbound
+
+  - title: "NAT 配置（Cisco IOS）"
+    type: network
+    vendor: cisco
+    tags: [nat, pat, overload, static, cisco]
+    source: "Cisco NAT Configuration Guide"
+    source_url: "https://www.cisco.com/c/en/us/support/docs/ip/network-address-translation-nat/13772-12.html"
+    version: "IOS 15.x, IOS-XE 16.x 及以上"
+    content: |
+      # Cisco NAT / PAT 配置
+      # 官方文档: https://www.cisco.com/c/en/us/support/docs/ip/network-address-translation-nat/13772-12.html
+
+      ## PAT（端口复用 NAT，共用一个出口 IP）
+      configure terminal
+      # 定义内网范围
+      ip access-list standard NAT-ACL
+       permit 192.168.0.0 0.0.255.255
+       exit
+      # 在内网接口标记 inside
+      interface GigabitEthernet0/1
+       ip nat inside
+       exit
+      # 在外网接口标记 outside
+      interface GigabitEthernet0/0
+       ip nat outside
+       exit
+      # 开启 PAT（overload = 端口复用）
+      ip nat inside source list NAT-ACL interface GigabitEthernet0/0 overload
+
+      ## Static NAT（静态 1:1 映射）
+      ip nat inside source static 192.168.1.10 203.0.113.10
+
+      ## 端口转发（DNAT，将公网端口映射到内网服务）
+      ip nat inside source static tcp 192.168.1.20 80 203.0.113.10 80
+      ip nat inside source static tcp 192.168.1.20 443 203.0.113.10 443
+
+      ## 查看 NAT
+      show ip nat translations
+      show ip nat statistics
+      clear ip nat translation *           # 清除 NAT 会话表（慎用）
+
+  # ══════════════════════════════════════════════════════
+  # 链路聚合
+  # ══════════════════════════════════════════════════════
+
+  - title: "链路聚合（华为 VRP - ETH-Trunk）"
+    type: network
+    vendor: huawei
+    tags: [lacp, eth-trunk, link-aggregation, lag, huawei, bond]
+    source: "华为企业网络产品文档 - ETH-Trunk 配置"
+    source_url: "https://support.huawei.com/enterprise/zh/doc/EDOC1100021771"
+    version: "VRP V200R003C00 及以上"
+    content: |
+      # 华为设备链路聚合（ETH-Trunk）
+      # 官方文档: https://support.huawei.com/enterprise/zh/doc/EDOC1100021771
+      # 模式: LACP（动态协商，推荐）或 Manual（手动，静态）
+
+      ## 创建 ETH-Trunk 并配置 LACP 模式
+      system-view
+      interface Eth-Trunk 1
+       mode lacp-static                            # LACP 模式（推荐）
+       # 或 manual load-balance（手动模式）
+       trunkport GigabitEthernet 0/0/1
+       trunkport GigabitEthernet 0/0/2
+       max active-linknumber 2                     # 最大活跃链路数
+       least active-linknumber 1                   # 最小活跃链路数（低于此告警）
+       description Uplink-to-Core
+      quit
+
+      ## 在 ETH-Trunk 上配置 Trunk（传多个 VLAN）
+      interface Eth-Trunk 1
+       port link-type trunk
+       port trunk allow-pass vlan 100 200 300
+      quit
+
+      ## 查看 ETH-Trunk
+      display eth-trunk 1
+      display lacp statistics eth-trunk 1
+
+  - title: "链路聚合（Cisco IOS - Port-Channel）"
+    type: network
+    vendor: cisco
+    tags: [lacp, port-channel, etherchannel, lag, cisco]
+    source: "Cisco EtherChannel Configuration Guide"
+    source_url: "https://www.cisco.com/c/en/us/support/docs/lan-switching/etherchannel/98469-ios-etherchannel.html"
+    version: "IOS 15.x, IOS-XE 16.x 及以上"
+    content: |
+      # Cisco EtherChannel（链路聚合）
+      # 官方文档: https://www.cisco.com/c/en/us/support/docs/lan-switching/etherchannel/98469-ios-etherchannel.html
+
+      ## 创建 Port-Channel（LACP 模式，推荐）
+      configure terminal
+      interface range GigabitEthernet1/0/1-2
+       channel-group 1 mode active          # active: 主动 LACP; passive: 被动 LACP
+       exit
+      # 在 Port-Channel 接口上配置
+      interface Port-channel1
+       description Uplink-to-Core
+       switchport mode trunk
+       switchport trunk allowed vlan 100,200,300
+       exit
+
+      ## 静态聚合（On 模式，不协商）
+      interface range GigabitEthernet1/0/3-4
+       channel-group 2 mode on
+       exit
+
+      ## 查看 EtherChannel
+      show etherchannel summary
+      show etherchannel 1 detail
+      show lacp neighbor

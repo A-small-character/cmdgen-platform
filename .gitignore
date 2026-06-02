@@ -38,3 +38,4 @@ deployments/docker/.volumes/
 
 # ── Go vendor (optional, uncomment if not committing vendor/) ──
 # vendor/
+vendor/

@@ -1,84 +1,265 @@
-knowledge_items:
-  - title: "ES集群健康检查"
-    type: elasticsearch
-    version: "7.x,8.x"
-    tags: ["cluster", "health", "monitoring"]
-    content: |
-      # Elasticsearch 集群健康检查
+# Elasticsearch 命令知识库
+# 来源: https://www.elastic.co/guide/en/elasticsearch/reference/current/
+# 版本覆盖: ES 6.x / 7.x / 8.x
+# 注意: ES 8.x 默认开启 Security（TLS + 认证），6.x/7.x 默认不开启
 
-      ## Curl命令
-      curl -X GET "http://localhost:9200/_cluster/health?pretty"
+knowledge_items:
+
+  # ══════════════════════════════════════════════════════
+  # 集群管理
+  # ══════════════════════════════════════════════════════
+
+  - title: "集群健康检查 (_cluster/health)"
+    type: elasticsearch
+    tags: [cluster, health, status, green, yellow, red]
+    source: "Elastic 官方文档 - Cluster health API"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"
+    version: "6.x,7.x,8.x"
+    content: |
+      # Cluster health API
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html
 
       ## Kibana Dev Tools
       GET _cluster/health
+      GET _cluster/health?pretty
+      GET _cluster/health?level=indices        # 精确到索引级别
+      GET _cluster/health?level=shards         # 精确到分片级别
+      GET _cluster/health/my-index             # 查看指定索引健康状态
+
+      ## Curl（无认证，ES 6.x/7.x 默认）
+      curl -X GET "http://localhost:9200/_cluster/health?pretty"
+
+      ## Curl（ES 8.x 默认开启 Security，需携带认证）
+      curl -X GET "https://localhost:9200/_cluster/health?pretty" \
+        -u elastic:your_password \
+        --cacert /etc/elasticsearch/certs/http_ca.crt
 
       ## 响应字段说明
-      - status: green(所有分片可用)/yellow(主分片可用，副本分片不可用)/red(主分片不可用)
-      - number_of_nodes: 集群节点数
-      - number_of_data_nodes: 数据节点数
-      - active_primary_shards: 活跃主分片数
-      - active_shards: 活跃分片总数
-      - relocating_shards: 正在迁移的分片数
-      - initializing_shards: 正在初始化的分片数
-      - unassigned_shards: 未分配的分片数（>0表示有问题）
+      # status:
+      #   green  - 所有主分片和副本分片均已分配
+      #   yellow - 所有主分片已分配，但部分副本分片未分配（单节点集群常见）
+      #   red    - 有主分片未分配（数据部分不可用，需立即处理）
+      # number_of_nodes:         集群节点总数
+      # number_of_data_nodes:    数据节点数
+      # active_primary_shards:   活跃主分片数
+      # active_shards:           活跃分片总数（含副本）
+      # relocating_shards:       正在迁移的分片数（>0表示集群在均衡）
+      # initializing_shards:     正在初始化的分片数（>0表示分片刚创建或恢复）
+      # unassigned_shards:       未分配分片数（>0需排查原因）
+      # delayed_unassigned_shards: 延迟分配的分片数
 
-      ## 版本差异
-      - ES 8.x: 默认开启Security，需要携带认证信息
-        curl -X GET "http://localhost:9200/_cluster/health?pretty" -u elastic:password
+      ## 等待集群状态变为 green（脚本中常用）
+      GET _cluster/health?wait_for_status=green&timeout=60s
 
-  - title: "创建索引"
+  - title: "集群统计和节点信息"
     type: elasticsearch
+    tags: [cluster, stats, nodes, cat, info]
+    source: "Elastic 官方文档 - CAT APIs"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/cat.html"
     version: "6.x,7.x,8.x"
-    tags: ["index", "create", "mapping"]
     content: |
-      # 创建Elasticsearch索引
+      # CAT APIs - 人类可读的集群信息
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/cat.html
+      # 所有 CAT API 均支持 ?v 显示标题行，?h=col1,col2 指定显示列，?s=col 排序
 
-      ## ES 7.x/8.x（无type）
+      ## 查看节点信息
+      GET _cat/nodes?v
+      GET _cat/nodes?v&h=ip,name,heapPercent,ramPercent,cpu,load_1m,role
+      # role 列说明: m=master d=data c=coordinating i=ingest ml=machine-learning
+
+      ## 查看所有索引
+      GET _cat/indices?v
+      GET _cat/indices?v&s=store.size:desc          # 按存储大小降序
+      GET _cat/indices?v&h=index,health,status,pri,rep,docs.count,store.size
+      GET _cat/indices/logs-*?v                      # 只看 logs-* 模式的索引
+
+      ## 查看分片分配
+      GET _cat/shards?v
+      GET _cat/shards?v&h=index,shard,prirep,state,unassigned.reason
+      GET _cat/shards?v&s=store:desc                 # 按分片大小降序
+
+      ## 查看未分配分片原因（重要排障命令）
+      GET _cluster/allocation/explain
+      GET _cluster/allocation/explain
+      {
+        "index": "my-index",
+        "shard": 0,
+        "primary": true
+      }
+
+      ## 集群统计
+      GET _cluster/stats?pretty
+      GET _nodes/stats?pretty
+      GET _nodes/stats/indices,os,jvm,process?pretty   # 只看部分统计
+
+      ## 查看集群设置
+      GET _cluster/settings?pretty&include_defaults=true
+      GET _cluster/settings?pretty                     # 只看已修改的设置
+
+      ## 修改集群设置
+      PUT _cluster/settings
+      {
+        "transient": {
+          "cluster.routing.allocation.enable": "all"
+        }
+      }
+      # transient: 临时设置（重启后失效）
+      # persistent: 永久设置（写入集群状态）
+
+  - title: "索引管理 - 创建/删除/设置"
+    type: elasticsearch
+    tags: [index, create, delete, settings, mapping, template]
+    source: "Elastic 官方文档 - Index APIs"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html"
+    version: "7.x,8.x"
+    content: |
+      # 索引管理 API
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html
+
+      ## 创建索引（ES 7.x/8.x 无 type）
       PUT /my-index
       {
         "settings": {
           "number_of_shards": 3,
           "number_of_replicas": 1,
-          "refresh_interval": "30s"
+          "refresh_interval": "30s",
+          "index.max_result_window": 10000
         },
         "mappings": {
           "properties": {
-            "title": { "type": "text", "analyzer": "ik_max_word" },
-            "content": { "type": "text" },
-            "created_at": { "type": "date", "format": "yyyy-MM-dd HH:mm:ss" },
-            "status": { "type": "keyword" },
-            "score": { "type": "float" }
+            "title":      { "type": "text",    "analyzer": "standard" },
+            "content":    { "type": "text" },
+            "keyword_field": { "type": "keyword" },
+            "created_at": { "type": "date",    "format": "yyyy-MM-dd HH:mm:ss||epoch_millis" },
+            "count":      { "type": "integer" },
+            "price":      { "type": "float" },
+            "is_active":  { "type": "boolean" },
+            "location":   { "type": "geo_point" },
+            "tags":       { "type": "keyword" }
           }
         }
       }
+      # 注意: ik_max_word 需安装 analysis-ik 插件，standard 是内置分析器
 
-      ## ES 6.x（有type，使用_doc）
-      PUT /my-index
+      ## 查看索引信息
+      GET /my-index                                  # 索引设置+映射
+      GET /my-index/_settings                        # 只看设置
+      GET /my-index/_mapping                         # 只看映射
+      GET /my-index/_count                           # 文档数量
+
+      ## 动态更新索引设置（只有部分设置支持动态更新）
+      PUT /my-index/_settings
       {
-        "settings": { "number_of_shards": 5, "number_of_replicas": 1 },
-        "mappings": {
-          "_doc": {
+        "number_of_replicas": 2,
+        "refresh_interval": "10s"
+      }
+
+      ## 关闭/开启索引
+      POST /my-index/_close           # 关闭（不可读写，但保留数据，释放部分内存）
+      POST /my-index/_open            # 重新开启
+
+      ## 删除索引（不可恢复！）
+      DELETE /my-index
+      DELETE /logs-2023-*             # 删除符合通配符的所有索引
+
+      ## 索引别名管理
+      POST _aliases
+      {
+        "actions": [
+          { "add":    { "index": "my-index-v2", "alias": "my-index" } },
+          { "remove": { "index": "my-index-v1", "alias": "my-index" } }
+        ]
+      }
+      GET _alias/my-index             # 查看别名指向
+
+      ## Reindex（数据迁移/重建索引）
+      POST _reindex
+      {
+        "source": { "index": "old-index" },
+        "dest":   { "index": "new-index" }
+      }
+      # 带条件的 reindex
+      POST _reindex
+      {
+        "source": {
+          "index": "old-index",
+          "query": { "range": { "created_at": { "gte": "2024-01-01" } } }
+        },
+        "dest": { "index": "new-index" }
+      }
+
+  - title: "索引模板 (Index Templates)"
+    type: elasticsearch
+    tags: [template, index-template, component-template, pattern]
+    source: "Elastic 官方文档 - Index templates"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-templates.html"
+    version: "7.8+,8.x"
+    content: |
+      # 索引模板（Index Templates）
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/index-templates.html
+      # ES 7.8+ 引入可组合模板（Composable Templates），推荐使用
+      # ES 6.x/7.x 旧版模板: PUT _template/<name>
+
+      ## 创建可组合索引模板（ES 7.8+ / 8.x 推荐）
+      PUT _index_template/logs-template
+      {
+        "index_patterns": ["logs-*"],
+        "priority": 200,
+        "template": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 1,
+            "refresh_interval": "5s"
+          },
+          "mappings": {
             "properties": {
-              "title": { "type": "text" }
+              "@timestamp": { "type": "date" },
+              "message":    { "type": "text" },
+              "level":      { "type": "keyword" },
+              "host":       { "type": "keyword" },
+              "service":    { "type": "keyword" }
             }
           }
         }
       }
 
-      ## 注意事项
-      - 分片数创建后不可修改，副本数可以修改
-      - 生产环境建议 number_of_shards = 节点数 或 节点数的整数倍
-      - ES 7.x 开始废弃 type，8.x 完全移除
+      ## 查看模板
+      GET _index_template                         # 所有模板
+      GET _index_template/logs-template           # 指定模板
+      GET _template                               # 旧版模板
 
-  - title: "ILM索引生命周期管理"
+      ## 删除模板
+      DELETE _index_template/logs-template
+
+      ## 旧版模板（ES 6.x / 7.x 兼容方式）
+      PUT _template/logs-old-template
+      {
+        "index_patterns": ["logs-*"],
+        "order": 1,
+        "settings": { "number_of_shards": 1 },
+        "mappings": {
+          "_doc": {
+            "properties": {
+              "@timestamp": { "type": "date" }
+            }
+          }
+        }
+      }
+      # ES 6.x 需要包含 type 名（"_doc"）
+
+  - title: "ILM 索引生命周期管理"
     type: elasticsearch
+    tags: [ilm, lifecycle, hot, warm, cold, delete, rollover]
+    source: "Elastic 官方文档 - ILM"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html"
     version: "6.6+,7.x,8.x"
-    tags: ["ilm", "lifecycle", "hot", "warm", "cold", "delete"]
     content: |
-      # ILM索引生命周期策略
+      # ILM 索引生命周期管理
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
+      # ILM 自 ES 6.6（X-Pack）起支持，7.x 起基础功能免费
 
-      ## 创建ILM策略
-      PUT _ilm/policy/my-logs-policy
+      ## 创建 ILM 策略
+      PUT _ilm/policy/logs-policy
       {
         "policy": {
           "phases": {
@@ -87,21 +268,24 @@ knowledge_items:
               "actions": {
                 "rollover": {
                   "max_primary_shard_size": "50gb",
-                  "max_age": "7d"
-                }
+                  "max_age": "7d",
+                  "max_docs": 100000000
+                },
+                "set_priority": { "priority": 100 }
               }
             },
             "warm": {
               "min_age": "7d",
               "actions": {
                 "shrink": { "number_of_shards": 1 },
-                "forcemerge": { "max_num_segments": 1 }
+                "forcemerge": { "max_num_segments": 1 },
+                "set_priority": { "priority": 50 }
               }
             },
             "cold": {
               "min_age": "30d",
               "actions": {
-                "freeze": {}
+                "set_priority": { "priority": 0 }
               }
             },
             "delete": {
@@ -114,69 +298,360 @@ knowledge_items:
         }
       }
 
-  - title: "ES SQL查询"
-    type: elasticsearch
-    version: "6.3+,7.x,8.x"
-    tags: ["sql", "query", "search"]
-    content: |
-      # Elasticsearch SQL
+      ## 查看 ILM 策略
+      GET _ilm/policy                              # 所有策略
+      GET _ilm/policy/logs-policy                  # 指定策略
 
-      ## REST API方式（ES 6.3+）
-      POST /_sql?format=txt
+      ## 查看索引 ILM 状态（排障用）
+      GET logs-000001/_ilm/explain
+      GET logs-*/_ilm/explain?only_errors=true     # 只看有错误的索引
+
+      ## 手动触发 ILM 步骤（调试用）
+      POST _ilm/move/logs-000001
       {
-        "query": "SELECT * FROM my-index WHERE status = 'active' LIMIT 100"
+        "current_step": { "phase": "hot", "action": "rollover", "name": "check-rollover-ready" },
+        "next_step":    { "phase": "warm", "action": "shrink",  "name": "shrink" }
       }
 
-      ## Kibana Dev Tools方式
-      POST /_sql?format=json
+      ## 关联 ILM 策略到索引模板
+      PUT _index_template/logs-template
       {
-        "query": "SELECT host, COUNT(*) as cnt FROM logs GROUP BY host ORDER BY cnt DESC LIMIT 10"
+        "index_patterns": ["logs-*"],
+        "template": {
+          "settings": {
+            "index.lifecycle.name":         "logs-policy",
+            "index.lifecycle.rollover_alias": "logs"
+          }
+        }
       }
 
-      ## SQL CLI方式
-      ./bin/elasticsearch-sql-cli http://localhost:9200
+      ## 创建初始数据流别名（用于 rollover）
+      PUT logs-000001
+      {
+        "aliases": {
+          "logs": { "is_write_index": true }
+        }
+      }
 
-      ## 注意事项
-      - SQL接口自ES 6.3起支持
-      - 不支持所有ES功能，复杂聚合建议使用DSL
-      - format参数: txt/json/csv/tsv/smile/cbor/yaml
-
-  - title: "快照备份与恢复"
+  - title: "搜索 - 常用 Query DSL"
     type: elasticsearch
+    tags: [search, query, dsl, match, term, bool, range, aggregation]
+    source: "Elastic 官方文档 - Query DSL"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html"
     version: "6.x,7.x,8.x"
-    tags: ["snapshot", "backup", "restore", "repository"]
     content: |
-      # Elasticsearch 快照备份
+      # Query DSL 常用查询
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html
 
-      ## 1. 注册快照仓库
-      PUT /_snapshot/my-backup-repo
+      ## Match 查询（全文搜索）
+      GET my-index/_search
+      {
+        "query": {
+          "match": { "title": "elasticsearch tutorial" }
+        }
+      }
+
+      ## Term 查询（精确匹配，用于 keyword 类型）
+      GET my-index/_search
+      {
+        "query": {
+          "term": { "status": "active" }
+        }
+      }
+
+      ## Bool 查询（组合条件）
+      GET my-index/_search
+      {
+        "query": {
+          "bool": {
+            "must":   [{ "match": { "title": "elasticsearch" } }],
+            "filter": [
+              { "term":  { "status": "published" } },
+              { "range": { "created_at": { "gte": "2024-01-01", "lte": "2024-12-31" } } }
+            ],
+            "must_not": [{ "term": { "deleted": true } }],
+            "should":   [{ "term": { "featured": true } }],
+            "minimum_should_match": 1
+          }
+        },
+        "sort": [{ "created_at": { "order": "desc" } }],
+        "from": 0,
+        "size": 20,
+        "_source": ["title", "status", "created_at"]
+      }
+      # must:     必须满足（影响评分）
+      # filter:   必须满足（不影响评分，会被缓存，推荐精确条件用filter）
+      # must_not: 必须不满足
+      # should:   可选满足（影响评分，minimum_should_match 控制最少匹配数）
+
+      ## Range 查询
+      GET my-index/_search
+      {
+        "query": {
+          "range": {
+            "age": { "gte": 18, "lte": 65 },
+            "created_at": { "gte": "now-7d/d", "lte": "now/d" }
+          }
+        }
+      }
+
+      ## 聚合（Aggregations）
+      GET logs-*/_search
+      {
+        "size": 0,
+        "aggs": {
+          "by_level": {
+            "terms": { "field": "level", "size": 10 }
+          },
+          "by_hour": {
+            "date_histogram": {
+              "field": "@timestamp",
+              "calendar_interval": "hour"
+            }
+          },
+          "avg_response_time": {
+            "avg": { "field": "response_ms" }
+          },
+          "p95_response": {
+            "percentiles": { "field": "response_ms", "percents": [50, 95, 99] }
+          }
+        }
+      }
+
+  - title: "快照备份与恢复 (Snapshot)"
+    type: elasticsearch
+    tags: [snapshot, backup, restore, repository, s3]
+    source: "Elastic 官方文档 - Snapshot and restore"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html"
+    version: "6.x,7.x,8.x"
+    content: |
+      # 快照备份与恢复
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html
+
+      ## 1. 注册快照仓库（本地文件系统）
+      # 先在 elasticsearch.yml 中配置 path.repo
+      # path.repo: ["/mnt/backups"]
+      PUT _snapshot/my-backup
       {
         "type": "fs",
         "settings": {
-          "location": "/mnt/backups/elasticsearch",
-          "compress": true
+          "location": "/mnt/backups",
+          "compress": true,
+          "chunk_size": "1gb",
+          "max_restore_bytes_per_sec": "40mb",
+          "max_snapshot_bytes_per_sec": "40mb"
+        }
+      }
+
+      ## 注册 S3 仓库（需安装 repository-s3 插件）
+      PUT _snapshot/s3-backup
+      {
+        "type": "s3",
+        "settings": {
+          "bucket": "my-es-backup",
+          "region": "cn-northwest-1",
+          "base_path": "elasticsearch"
         }
       }
 
       ## 2. 创建快照
-      PUT /_snapshot/my-backup-repo/snapshot-2024-01-01
+      PUT _snapshot/my-backup/snapshot-2024-01-01?wait_for_completion=true
       {
-        "indices": "my-index,logs-*",
+        "indices": "logs-*,metrics-*",
         "ignore_unavailable": true,
-        "include_global_state": false
+        "include_global_state": false,
+        "metadata": { "taken_by": "admin", "reason": "daily backup" }
       }
+      # wait_for_completion=true: 等待快照完成再返回（适合脚本）
+      # include_global_state=false: 不备份集群状态（如模板等）
 
       ## 3. 查看快照状态
-      GET /_snapshot/my-backup-repo/snapshot-2024-01-01
+      GET _snapshot/my-backup/_all                              # 所有快照
+      GET _snapshot/my-backup/snapshot-2024-01-01               # 指定快照
+      GET _snapshot/my-backup/snapshot-2024-01-01/_status       # 详细状态（含进度）
+      GET _snapshot/_status                                     # 所有正在进行的快照
 
       ## 4. 恢复快照
-      POST /_snapshot/my-backup-repo/snapshot-2024-01-01/_restore
+      POST _snapshot/my-backup/snapshot-2024-01-01/_restore
       {
-        "indices": "my-index",
+        "indices": "logs-2024-01",
+        "ignore_unavailable": true,
+        "include_global_state": false,
         "rename_pattern": "(.+)",
-        "rename_replacement": "restored_$1"
+        "rename_replacement": "restored_$1",
+        "index_settings": {
+          "index.number_of_replicas": 0
+        }
+      }
+      # rename_pattern/replacement: 恢复时重命名索引，避免与现有索引冲突
+
+      ## 5. 删除快照
+      DELETE _snapshot/my-backup/snapshot-2024-01-01
+
+  - title: "Elasticsearch SQL"
+    type: elasticsearch
+    tags: [sql, query, select, esql]
+    source: "Elastic 官方文档 - SQL"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-overview.html"
+    version: "6.3+,7.x,8.x"
+    content: |
+      # Elasticsearch SQL
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-overview.html
+      # SQL 接口自 ES 6.3 起支持（X-Pack 基础功能，免费）
+
+      ## REST API 方式
+      POST /_sql?format=txt
+      {
+        "query": "SELECT * FROM \"my-index\" LIMIT 10"
       }
 
+      ## 支持的 format 参数
+      # txt    - 人类可读的文本表格（默认）
+      # json   - JSON 格式
+      # csv    - CSV 格式
+      # tsv    - Tab分隔
+      # yaml   - YAML 格式
+
+      ## Kibana Dev Tools 方式
+      POST _sql
+      {
+        "query": "SELECT host, COUNT(*) AS cnt FROM logs GROUP BY host ORDER BY cnt DESC LIMIT 10"
+      }
+
+      ## 常用 SQL 语法
+      # 查询
+      SELECT * FROM "logs-*" WHERE level = 'ERROR' AND "@timestamp" >= '2024-01-01' LIMIT 100
+
+      # 聚合
+      SELECT level, COUNT(*) AS cnt FROM logs GROUP BY level ORDER BY cnt DESC
+
+      # 时间函数
+      SELECT HISTOGRAM("@timestamp", INTERVAL 1 HOUR) AS hour, COUNT(*) AS cnt
+      FROM logs GROUP BY hour ORDER BY hour
+
+      # 转换为 DSL（调试用）
+      POST _sql/translate
+      {
+        "query": "SELECT host, COUNT(*) FROM logs GROUP BY host"
+      }
+
+      ## SQL CLI 方式（需要 ES 自带工具）
+      ./bin/elasticsearch-sql-cli http://localhost:9200
+      # 连接后直接输入 SQL
+
       ## 注意事项
-      - 恢复前目标索引必须关闭或不存在
-      - 生产环境建议使用S3/GCS/Azure等云存储
+      # 1. 索引名中含 - 需用双引号括起来: SELECT * FROM "logs-2024"
+      # 2. 不支持所有 ES 功能（如 nested 对象的复杂查询）
+      # 3. ES 8.x 新增 ES|QL（更强大），与 SQL 并存
+
+  - title: "ES 8.x Security 配置"
+    type: elasticsearch
+    tags: [security, tls, authentication, user, role, es8]
+    source: "Elastic 官方文档 - Security"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/secure-cluster.html"
+    version: "8.x"
+    content: |
+      # ES 8.x Security（默认开启）
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/secure-cluster.html
+      # ES 8.x 安装后默认启用 TLS + 密码认证，与 6.x/7.x 有重要差异
+
+      ## 安装后获取初始密码（仅在安装日志中显示一次）
+      # 也可以手动重置
+      /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
+
+      ## 用 Curl 访问 ES 8.x
+      curl -X GET "https://localhost:9200/_cluster/health?pretty" \
+        -u elastic:your_password \
+        --cacert /etc/elasticsearch/certs/http_ca.crt
+
+      ## 关闭 TLS 验证（测试环境，不推荐生产）
+      curl -X GET "https://localhost:9200/_cluster/health?pretty" \
+        -u elastic:your_password \
+        --insecure
+
+      ## 管理用户
+      # 创建用户
+      POST /_security/user/john
+      {
+        "password": "StrongPass123!",
+        "roles": ["kibana_user", "read_only"],
+        "full_name": "John Doe",
+        "email": "john@example.com"
+      }
+
+      # 修改密码
+      POST /_security/user/john/_password
+      { "password": "NewPass456!" }
+
+      ## 管理角色
+      PUT /_security/role/logs_reader
+      {
+        "indices": [
+          {
+            "names": ["logs-*"],
+            "privileges": ["read", "view_index_metadata"]
+          }
+        ]
+      }
+
+      ## elasticsearch.yml 关闭安全功能（开发测试，生产绝对不要）
+      xpack.security.enabled: false
+      xpack.security.http.ssl.enabled: false
+      xpack.security.transport.ssl.enabled: false
+
+  - title: "CAT API 速查 & 分片排障"
+    type: elasticsearch
+    tags: [cat, shard, unassigned, recovery, allocation]
+    source: "Elastic 官方文档 - CAT shards API"
+    source_url: "https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-shards.html"
+    version: "6.x,7.x,8.x"
+    content: |
+      # CAT API 速查和分片排障
+      # 官方文档: https://www.elastic.co/guide/en/elasticsearch/reference/current/cat.html
+
+      ## 常用 CAT API
+      GET _cat/health?v                  # 集群健康（简洁版）
+      GET _cat/nodes?v                   # 节点信息
+      GET _cat/indices?v&s=store.size:desc # 索引按大小排序
+      GET _cat/shards?v                  # 所有分片
+      GET _cat/shards?v&h=index,shard,prirep,state,docs,store,node  # 指定列
+      GET _cat/allocation?v              # 节点磁盘分配情况
+      GET _cat/count/my-index?v          # 索引文档数
+      GET _cat/aliases?v                 # 别名
+      GET _cat/templates?v               # 模板
+      GET _cat/plugins?v                 # 已安装插件
+      GET _cat/recovery?v                # 恢复进度
+      GET _cat/segments?v                # 分片段信息
+      GET _cat/pending_tasks?v           # 待处理任务
+
+      ## 排查未分配分片（UNASSIGNED）
+      # 第一步：找出未分配分片
+      GET _cat/shards?v&h=index,shard,prirep,state,unassigned.reason&s=state
+
+      # 第二步：获取详细原因
+      GET _cluster/allocation/explain
+      {
+        "index": "my-index",
+        "shard": 0,
+        "primary": false
+      }
+
+      # 常见 unassigned.reason 含义
+      # INDEX_CREATED - 新索引，副本还未分配（正常）
+      # CLUSTER_RECOVERED - 集群重启恢复中
+      # NODE_LEFT - 节点离开集群
+      # ALLOCATION_FAILED - 分配失败（通常是磁盘满或配置问题）
+      # REALLOCATED_REPLICA - 副本重分配中
+
+      # 第三步：手动触发分配（磁盘恢复后使用）
+      POST _cluster/reroute?retry_failed=true
+
+      ## 降低磁盘水位线（临时解决磁盘空间不足导致的 red 状态）
+      PUT _cluster/settings
+      {
+        "transient": {
+          "cluster.routing.allocation.disk.watermark.low": "90%",
+          "cluster.routing.allocation.disk.watermark.high": "95%",
+          "cluster.routing.allocation.disk.watermark.flood_stage": "97%"
+        }
+      }

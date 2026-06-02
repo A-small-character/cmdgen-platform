@@ -7,148 +7,155 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--panel:#1a1d27;--card:#22263a;--border:#2d3148;
-  --accent:#4f8ef7;--accent2:#7c6af7;--green:#22c55e;--yellow:#f59e0b;
-  --red:#ef4444;--text:#e2e8f0;--muted:#64748b;--code:#1e293b;
-  --radius:10px;
+  --bg:#0b0e14;--bg2:#0f131c;--panel:#151a26;--card:#1b2130;--card2:#212838;
+  --border:#2a3142;--border2:#363f54;
+  --accent:#5b9dff;--accent2:#8b7bff;--accent-grad:linear-gradient(135deg,#5b9dff,#8b7bff);
+  --green:#34d399;--yellow:#fbbf24;--red:#f87171;
+  --text:#e8edf5;--text2:#9aa7bd;--muted:#5f6b82;--code-text:#7dd3fc;
+  --radius:14px;--radius-sm:9px;--shadow:0 8px 30px rgba(0,0,0,.35);
 }
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-
-/* ── HEADER ── */
-header{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
-header .logo{font-size:22px}
-header h1{font-size:16px;font-weight:700;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-header .mode-badge{margin-left:auto;padding:3px 10px;border-radius:20px;font-size:12px;border:1px solid var(--border)}
-header .mode-badge.online{border-color:var(--green);color:var(--green)}
-header .mode-badge.offline{border-color:var(--muted);color:var(--muted)}
-
-/* ── MAIN LAYOUT ── */
+html,body{height:100%}
+body{
+  font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif;
+  background:radial-gradient(1200px 600px at 80% -10%,rgba(91,157,255,.08),transparent 60%),
+             radial-gradient(900px 500px at -10% 110%,rgba(139,123,255,.08),transparent 60%),var(--bg);
+  color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden
+}
+header{
+  background:rgba(21,26,38,.7);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+  padding:14px 26px;display:flex;align-items:center;gap:14px;flex-shrink:0;z-index:10
+}
+header .logo{font-size:26px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-grad);border-radius:12px;box-shadow:0 4px 14px rgba(91,157,255,.4)}
+header .titles h1{font-size:18px;font-weight:800;letter-spacing:.5px}
+header .titles p{font-size:11px;color:var(--text2);margin-top:1px}
+header .mode-badge{margin-left:auto;padding:7px 16px;border-radius:30px;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:7px;border:1px solid var(--border2);background:var(--card)}
+header .mode-badge .pulse{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+header .mode-badge.online{border-color:rgba(52,211,153,.5);color:var(--green);background:rgba(52,211,153,.08)}
+header .mode-badge.online .pulse{background:var(--green);box-shadow:0 0 0 4px rgba(52,211,153,.2);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .main{display:flex;flex:1;overflow:hidden}
-
-/* ── LEFT PANEL ── */
-.left{width:380px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:14px;gap:12px}
-.section-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-
-textarea#inputBox{
-  width:100%;height:110px;background:var(--code);border:1px solid var(--border);border-radius:var(--radius);
-  color:var(--text);padding:10px 12px;font-size:13px;resize:none;outline:none;font-family:inherit;line-height:1.6;
-  transition:border-color .2s
-}
-textarea#inputBox:focus{border-color:var(--accent)}
-
-/* category tabs */
-.cat-tabs{display:flex;flex-wrap:wrap;gap:5px}
-.cat-tab{padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:.15s}
-.cat-tab:hover{border-color:var(--accent);color:var(--accent)}
-.cat-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-
-/* quick btns */
-.quick-grid{display:flex;flex-direction:column;gap:4px}
-.quick-btn{text-align:left;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:5px 10px;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.quick-btn:hover{border-color:var(--accent);color:var(--text);background:var(--border)}
-
-/* ai settings */
-.ai-form{display:flex;flex-direction:column;gap:8px}
-.ai-form select,.ai-form input{background:var(--code);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;outline:none;width:100%}
-.ai-form select:focus,.ai-form input:focus{border-color:var(--accent)}
-
-/* generate button */
-.gen-btn{
-  width:100%;padding:11px;border-radius:var(--radius);border:none;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  color:#fff;font-size:14px;font-weight:700;cursor:pointer;
-  transition:opacity .2s,transform .1s;letter-spacing:.03em
-}
-.gen-btn:hover{opacity:.9}
-.gen-btn:active{transform:scale(.98)}
-.gen-btn:disabled{opacity:.5;cursor:not-allowed}
-
-/* ── RIGHT PANEL ── */
-.right{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:14px;gap:12px}
-
-.result-header{display:flex;align-items:center;gap:10px}
-.result-header h3{font-size:14px;font-weight:600}
-.result-count{background:var(--accent);color:#fff;border-radius:20px;padding:1px 8px;font-size:11px}
-.copy-all-btn{margin-left:auto;padding:5px 12px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:12px;transition:.15s}
-.copy-all-btn:hover{border-color:var(--accent);color:var(--accent)}
-
-.result-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
-
-/* command card */
-.cmd-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color .2s}
-.cmd-card:hover{border-color:var(--accent)}
-.cmd-card-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
-.cmd-number{background:var(--accent);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
-.cmd-title{font-size:13px;font-weight:600;flex:1}
-.risk-badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;flex-shrink:0}
-.risk-low{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
-.risk-medium{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
-.risk-high{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
-.cmd-body{padding:0}
-pre.cmd-code{
-  background:var(--code);padding:12px 14px;font-family:'Cascadia Code','Consolas',monospace;
-  font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre;color:#a5f3fc;margin:0
-}
-.cmd-footer{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}
-.cmd-explain{font-size:12px;color:var(--muted);flex:1;line-height:1.6}
-.copy-btn{
-  flex-shrink:0;padding:4px 12px;background:var(--panel);border:1px solid var(--border);
-  border-radius:5px;color:var(--text);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap
-}
-.copy-btn:hover{border-color:var(--green);color:var(--green)}
-.copy-btn.copied{border-color:var(--green);color:var(--green);background:rgba(34,197,94,.1)}
-
-/* warning */
-.warn-card{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:10px 14px;display:flex;gap:8px;align-items:flex-start}
-.warn-card.high{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3)}
-.warn-icon{font-size:16px;flex-shrink:0}
-.warn-text{font-size:12px;color:var(--yellow);line-height:1.6}
+.left{width:340px;flex-shrink:0;background:rgba(15,19,28,.6);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;padding:18px;gap:18px}
+.field-label{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:9px;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.field-label .ico{font-size:14px}
+textarea#inputBox{width:100%;height:118px;background:var(--bg2);border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);color:var(--text);padding:13px 15px;font-size:14px;resize:none;
+  outline:none;font-family:inherit;line-height:1.65;transition:.2s}
+textarea#inputBox::placeholder{color:var(--muted)}
+textarea#inputBox:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,157,255,.12)}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cat-tab{padding:11px 8px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
+  color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:.18s;display:flex;
+  align-items:center;justify-content:center;gap:6px;text-align:center}
+.cat-tab:hover{border-color:var(--accent);color:var(--text);transform:translateY(-1px)}
+.cat-tab.active{background:var(--accent-grad);border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(91,157,255,.35)}
+.quick-grid{display:flex;flex-direction:column;gap:7px}
+.quick-btn{text-align:left;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text2);padding:9px 13px;font-size:12.5px;cursor:pointer;transition:.16s;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+.quick-btn::before{content:'›';color:var(--accent);font-weight:800;font-size:15px}
+.quick-btn:hover{border-color:var(--accent);color:var(--text);background:var(--card2);padding-left:17px}
+.ai-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:15px}
+.ai-card .ai-tip{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:13px}
+.ai-form{display:flex;flex-direction:column;gap:10px}
+.ai-form select,.ai-form input{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);padding:10px 13px;font-size:13px;outline:none;width:100%;transition:.2s}
+.ai-form select:focus,.ai-form input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,157,255,.12)}
+.btn-secondary{background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius-sm);
+  color:var(--text);padding:9px;font-size:13px;font-weight:600;cursor:pointer;transition:.18s}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.gen-btn{width:100%;padding:15px;border-radius:var(--radius);border:none;background:var(--accent-grad);
+  color:#fff;font-size:15.5px;font-weight:800;cursor:pointer;transition:.2s;letter-spacing:.04em;
+  box-shadow:0 6px 20px rgba(91,157,255,.4);display:flex;align-items:center;justify-content:center;gap:9px}
+.gen-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(91,157,255,.5)}
+.gen-btn:active{transform:translateY(0)}
+.gen-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:18px 22px}
+.result-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-shrink:0}
+.result-header h2{font-size:18px;font-weight:800}
+.result-count{background:var(--accent-grad);color:#fff;border-radius:30px;padding:3px 13px;font-size:13px;
+  font-weight:700;box-shadow:0 3px 10px rgba(91,157,255,.35)}
+.copy-all-btn{margin-left:auto;padding:9px 18px;background:var(--card);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;
+  transition:.18s;display:flex;align-items:center;gap:7px}
+.copy-all-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--card2)}
+.result-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:6px;padding-bottom:10px}
+.cmd-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+  transition:.2s;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.cmd-card:hover{border-color:var(--border2);box-shadow:var(--shadow)}
+.cmd-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(255,255,255,.02)}
+.cmd-num{background:var(--accent-grad);color:#fff;border-radius:10px;min-width:30px;height:30px;display:flex;
+  align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0}
+.cmd-title{font-size:15px;font-weight:700;flex:1;color:var(--text)}
+.risk-badge{padding:4px 12px;border-radius:30px;font-size:12px;font-weight:700;flex-shrink:0;white-space:nowrap}
+.risk-low{background:rgba(52,211,153,.14);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.risk-medium{background:rgba(251,191,36,.14);color:var(--yellow);border:1px solid rgba(251,191,36,.3)}
+.risk-high{background:rgba(248,113,113,.14);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.cmd-code-wrap{position:relative;background:#0a0d14;border-top:1px solid var(--border)}
+.cmd-code-wrap .lang-tag{position:absolute;top:9px;right:13px;font-size:10px;font-weight:700;letter-spacing:.08em;
+  color:var(--muted);text-transform:uppercase;background:var(--card);padding:2px 8px;border-radius:6px;z-index:2}
+pre.cmd-code{padding:16px 18px;font-family:'Cascadia Code','JetBrains Mono','Consolas',monospace;font-size:13.5px;
+  line-height:1.75;overflow-x:auto;white-space:pre;color:var(--code-text);margin:0;tab-size:2}
+pre.cmd-code::-webkit-scrollbar{height:8px}
+.cmd-foot{display:flex;align-items:flex-start;gap:12px;padding:13px 18px;border-top:1px solid var(--border)}
+.cmd-explain{font-size:13px;color:var(--text2);flex:1;line-height:1.65}
+.copy-btn{flex-shrink:0;padding:8px 16px;background:var(--card2);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;transition:.16s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap}
+.copy-btn:hover{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08)}
+.copy-btn.copied{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.14)}
+.cmd-extra{padding:0 18px 14px;font-size:12.5px;color:var(--text2);line-height:1.6}
+.cmd-extra code{background:#0a0d14;color:var(--code-text);padding:2px 8px;border-radius:5px;font-family:'Consolas',monospace}
+.cmd-extra .label{color:var(--muted);font-weight:600}
+.warn-card{border-radius:var(--radius);padding:14px 18px;display:flex;gap:12px;align-items:flex-start;
+  background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28)}
+.warn-card.high{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.28)}
+.warn-icon{font-size:18px;flex-shrink:0}
+.warn-text{font-size:13px;color:var(--yellow);line-height:1.6}
 .warn-card.high .warn-text{color:var(--red)}
-
-/* empty / loading */
-.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted)}
-.empty-state .icon{font-size:48px;opacity:.4}
-.empty-state p{font-size:13px}
-.loading-dots span{display:inline-block;animation:dot 1.2s infinite;font-size:24px}
-.loading-dots span:nth-child(2){animation-delay:.2s}
-.loading-dots span:nth-child(3){animation-delay:.4s}
-@keyframes dot{0%,80%,100%{opacity:.2}40%{opacity:1}}
-
-/* status bar */
-.statusbar{background:var(--panel);border-top:1px solid var(--border);padding:5px 20px;font-size:11px;color:var(--muted);flex-shrink:0;display:flex;align-items:center;gap:8px}
-.statusbar .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
-
-/* scrollbar */
-::-webkit-scrollbar{width:5px;height:5px}
+.explain-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;
+  font-size:13px;color:var(--text2);line-height:1.75}
+.explain-card strong{color:var(--text);display:block;margin-bottom:6px;font-size:13.5px}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--muted)}
+.empty-state .icon{font-size:64px;opacity:.35}
+.empty-state .big{font-size:16px;color:var(--text2);font-weight:600}
+.empty-state .small{font-size:13px}
+.loading-ring{width:46px;height:46px;border:4px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.statusbar{background:rgba(15,19,28,.7);backdrop-filter:blur(8px);border-top:1px solid var(--border);
+  padding:9px 26px;font-size:12px;color:var(--text2);flex-shrink:0;display:flex;align-items:center;gap:9px}
+.statusbar .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
-
-/* toast */
-.toast{position:fixed;bottom:30px;right:20px;background:var(--green);color:#000;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
-.toast.show{opacity:1}
+.toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);
+  color:#04180f;padding:11px 26px;border-radius:30px;font-size:14px;font-weight:700;opacity:0;transition:.3s;
+  pointer-events:none;z-index:999;box-shadow:0 8px 24px rgba(52,211,153,.4)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
-
 <header>
-  <span class="logo">🔧</span>
-  <h1>智能命令生成平台</h1>
-  <span id="modeBadge" class="mode-badge offline">● 离线模式</span>
+  <div class="logo">🔧</div>
+  <div class="titles">
+    <h1>智能命令生成平台</h1>
+    <p>Linux · 网络设备 · Elasticsearch · Docker · K8s · MySQL</p>
+  </div>
+  <div id="modeBadge" class="mode-badge"><span class="pulse"></span>离线模式</div>
 </header>
-
 <div class="main">
-  <!-- ── LEFT PANEL ── -->
-  <div class="left">
-
+  <aside class="left">
     <div>
-      <div class="section-title">描述你的需求</div>
-      <textarea id="inputBox" placeholder="用自然语言描述，例如：&#10;• 查找7天前大于1GB的日志文件&#10;• 修改SSH端口为2222&#10;• 华为交换机创建VLAN100并配置Trunk&#10;• ES 8.x查看集群健康状态&#10;• Docker运行nginx限制内存512M"></textarea>
+      <div class="field-label"><span class="ico">✏️</span>描述你的需求</div>
+      <textarea id="inputBox" placeholder="例如：&#10;查找7天前大于1GB的日志文件&#10;修改SSH端口为2222&#10;华为交换机创建VLAN100并配置Trunk&#10;ES 8.x查看集群健康状态"></textarea>
     </div>
-
     <div>
-      <div class="section-title">命令类型</div>
-      <div class="cat-tabs" id="catTabs">
+      <div class="field-label"><span class="ico">📂</span>命令类型</div>
+      <div class="cat-grid" id="catTabs">
         <button class="cat-tab active" data-cat="linux">🐧 Linux</button>
         <button class="cat-tab" data-cat="network">🌐 网络设备</button>
         <button class="cat-tab" data-cat="elasticsearch">🔍 ES</button>
@@ -157,274 +164,174 @@ pre.cmd-code{
         <button class="cat-tab" data-cat="mysql">🗄️ MySQL</button>
       </div>
     </div>
-
-    <div id="quickSection">
-      <div class="section-title">快捷输入</div>
+    <div>
+      <div class="field-label"><span class="ico">⚡</span>快捷输入</div>
       <div class="quick-grid" id="quickGrid"></div>
     </div>
-
     <div>
-      <div class="section-title">AI 配置（可选，不填也可离线使用）</div>
-      <div class="ai-form">
-        <select id="aiProvider">
-          <option value="deepseek">DeepSeek（国内直连，推荐）</option>
-          <option value="openai">OpenAI（需代理）</option>
-          <option value="claude">Claude（需代理）</option>
-          <option value="ollama">Ollama（本地 LLM）</option>
-        </select>
-        <input type="password" id="apiKey" placeholder="API Key（可选）" autocomplete="off">
-        <button class="gen-btn" style="padding:7px;font-size:12px;font-weight:500" onclick="saveAI()">保存 AI 配置</button>
+      <div class="field-label"><span class="ico">🤖</span>AI 配置（可选）</div>
+      <div class="ai-card">
+        <div class="ai-tip">不填也能离线使用内置规则库。配置 Key 后可获得更智能的命令生成。</div>
+        <div class="ai-form">
+          <select id="aiProvider">
+            <option value="deepseek">DeepSeek（国内直连，推荐）</option>
+            <option value="openai">OpenAI（需代理）</option>
+            <option value="claude">Claude（需代理）</option>
+            <option value="ollama">Ollama（本地）</option>
+          </select>
+          <input type="password" id="apiKey" placeholder="API Key" autocomplete="off">
+          <button class="btn-secondary" onclick="saveAI()">保存 AI 配置</button>
+        </div>
       </div>
     </div>
-
     <button class="gen-btn" id="genBtn" onclick="generate()">⚡ 生成命令</button>
-  </div>
-
-  <!-- ── RIGHT PANEL ── -->
-  <div class="right">
+  </aside>
+  <main class="right">
     <div class="result-header">
-      <h3>生成结果</h3>
+      <h2>生成结果</h2>
       <span class="result-count" id="resultCount" style="display:none">0</span>
       <button class="copy-all-btn" id="copyAllBtn" style="display:none" onclick="copyAll()">📋 复制全部</button>
     </div>
     <div class="result-scroll" id="resultScroll">
       <div class="empty-state" id="emptyState">
         <div class="icon">🚀</div>
-        <p>在左侧输入需求，点击「生成命令」</p>
-        <p style="font-size:11px">无需 API Key 即可离线生成常用命令</p>
+        <div class="big">在左侧输入需求，点击「生成命令」</div>
+        <div class="small">无需 API Key 即可离线生成常用命令</div>
       </div>
     </div>
-  </div>
+  </main>
 </div>
-
-<div class="statusbar">
-  <span class="dot" id="statusDot"></span>
-  <span id="statusText">就绪 — 离线规则库已加载</span>
-</div>
+<div class="statusbar"><span class="dot"></span><span id="statusText">就绪 — 离线规则库已加载</span></div>
 <div class="toast" id="toast">✓ 已复制</div>
-
 <script>
-// ── 分类快捷输入映射 ──────────────────────────────────────────────────────────
 const QUICK = {
-  linux: ["查找7天前大于1GB的日志文件","修改SSH端口为2222","查看磁盘使用情况","查看进程CPU和内存占用","查看所有监听端口","配置防火墙放行端口","查看系统内存使用","tail实时查看日志"],
-  network: ["华为交换机创建VLAN100并配置Trunk","配置OSPF Area 0 MD5认证","配置静态路由默认路由","配置端口聚合LAG","Palo Alto配置安全策略","Cisco配置ACL访问控制列表"],
-  elasticsearch: ["查看集群健康状态","创建索引并设置Mapping","配置ILM生命周期策略","快照备份与恢复","查看分片分配情况","重建索引reindex","查看慢查询日志"],
-  docker: ["运行nginx容器限制内存512M","查看容器日志实时跟踪","进入容器内部排查问题","清理无用镜像和容器","生产级多阶段Dockerfile","Docker Compose启动服务"],
-  kubernetes: ["查看所有Pod运行状态","查看Pod日志实时","滚动重启Deployment","水平扩缩容replicas","进入Pod内部排查","查看节点资源使用情况","查看Events事件"],
-  mysql: ["创建数据库和用户授权","mysqldump备份数据库","查看慢查询日志","配置GTID主从复制","查看表大小占用空间","在线DDL修改大表结构","查看当前连接和锁"],
+  linux: ["查找7天前大于1GB的日志文件","修改SSH端口为2222","查看磁盘使用情况","查看进程CPU和内存占用","查看所有监听端口","配置防火墙放行端口","crontab定时任务","tar打包压缩备份"],
+  network: ["华为交换机创建VLAN100并配置Trunk","配置OSPF Area 0 MD5认证","配置BGP邻居","Cisco配置ACL","H3C配置端口聚合","配置静态路由"],
+  elasticsearch: ["查看集群健康状态","创建索引并设置Mapping","配置ILM生命周期策略","快照备份与恢复","查看分片分配情况","reindex重建索引","ES SQL查询"],
+  docker: ["运行nginx容器限制内存512M","查看容器日志实时跟踪","进入容器内部排查","清理无用镜像和容器","生产级多阶段Dockerfile","docker compose部署"],
+  kubernetes: ["查看所有Pod运行状态","查看Pod日志","滚动重启Deployment","水平扩缩容","进入Pod排查","节点维护drain","查看Events事件"],
+  mysql: ["创建数据库和用户授权","mysqldump备份数据库","查看慢查询日志","配置GTID主从复制","查看表大小占用","EXPLAIN分析执行计划"],
 };
-
 let currentCat = 'linux';
-let aiConfig = {provider:'deepseek', key:''};
-
-// ── 初始化 ────────────────────────────────────────────────────────────────────
+let aiConfig = { provider:'deepseek', key:'' };
 document.addEventListener('DOMContentLoaded', () => {
   renderQuick('linux');
-
-  // 分类 Tab 切换
   document.getElementById('catTabs').addEventListener('click', e => {
-    const btn = e.target.closest('.cat-tab');
-    if (!btn) return;
+    const btn = e.target.closest('.cat-tab'); if (!btn) return;
     document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentCat = btn.dataset.cat;
-    renderQuick(currentCat);
+    btn.classList.add('active'); currentCat = btn.dataset.cat; renderQuick(currentCat);
   });
-
-  // Enter 键快捷生成
   document.getElementById('inputBox').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.ctrlKey) generate();
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
   });
-
-  // 检查 AI 状态
   checkAIStatus();
 });
-
 function renderQuick(cat) {
-  const grid = document.getElementById('quickGrid');
-  grid.innerHTML = '';
-  (QUICK[cat] || []).forEach(text => {
-    const btn = document.createElement('button');
-    btn.className = 'quick-btn';
-    btn.textContent = '▶ ' + text;
-    btn.onclick = () => { document.getElementById('inputBox').value = text; };
-    grid.appendChild(btn);
+  const g = document.getElementById('quickGrid'); g.innerHTML = '';
+  (QUICK[cat]||[]).forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'quick-btn'; b.textContent = t;
+    b.onclick = () => { document.getElementById('inputBox').value = t; };
+    g.appendChild(b);
   });
 }
-
-// ── AI 配置 ───────────────────────────────────────────────────────────────────
 function saveAI() {
   const provider = document.getElementById('aiProvider').value;
   const key = document.getElementById('apiKey').value.trim();
-  if (!key) { showToast('未填入 Key，将使用离线模式', 'warn'); return; }
-
-  fetch('/api/v1/config/ai', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({provider, api_key: key})
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.code === 0) {
-      aiConfig = {provider, key};
-      document.getElementById('modeBadge').textContent = '● AI 增强模式';
-      document.getElementById('modeBadge').className = 'mode-badge online';
-      showToast('AI 配置已保存 ✓');
-    } else {
-      showToast('配置失败：' + d.message, 'err');
-    }
-  })
-  .catch(() => showToast('连接服务失败', 'err'));
+  if (!key) { showToast('未填入 Key，使用离线模式'); return; }
+  fetch('/api/v1/config/ai', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ provider, api_key:key }) })
+    .then(r => r.json()).then(d => {
+      if (d.code === 0) { aiConfig = { provider, key }; setOnline(provider); showToast('AI 配置已保存 ✓'); }
+      else showToast('配置失败：' + d.message);
+    }).catch(() => showToast('连接服务失败'));
 }
-
 async function checkAIStatus() {
-  try {
-    const r = await fetch('/api/v1/config/ai/status');
-    const d = await r.json();
-    if (d.ai_available) {
-      document.getElementById('modeBadge').textContent = '● AI 增强模式';
-      document.getElementById('modeBadge').className = 'mode-badge online';
-      document.getElementById('aiProvider').value = d.provider || 'deepseek';
-    }
+  try { const r = await fetch('/api/v1/config/ai/status'); const d = await r.json();
+    if (d.ai_available) { setOnline(d.provider); document.getElementById('aiProvider').value = d.provider || 'deepseek'; }
   } catch(e) {}
 }
-
-// ── 生成命令 ──────────────────────────────────────────────────────────────────
+function setOnline(p) {
+  const b = document.getElementById('modeBadge');
+  b.className = 'mode-badge online';
+  b.innerHTML = '<span class="pulse"></span>AI 增强 · ' + (p || 'deepseek');
+}
 async function generate() {
   const input = document.getElementById('inputBox').value.trim();
-  if (!input) { showToast('请输入需求描述', 'warn'); return; }
-
+  if (!input) { showToast('请输入需求描述'); return; }
   const btn = document.getElementById('genBtn');
-  btn.disabled = true;
-  btn.textContent = '生成中...';
+  btn.disabled = true; btn.textContent = '生成中...';
   setStatus('正在生成命令...');
-
-  // 显示 loading
   const scroll = document.getElementById('resultScroll');
-  scroll.innerHTML = `<div class="empty-state">
-    <div class="loading-dots"><span>●</span><span>●</span><span>●</span></div>
-    <p>正在生成命令...</p>
-  </div>`;
-
+  scroll.innerHTML = '<div class="empty-state"><div class="loading-ring"></div><div class="big">正在生成命令...</div></div>';
   try {
-    const body = {
-      input,
-      category: currentCat,
-      provider: aiConfig.key ? aiConfig.provider : '',
-    };
-
-    const r = await fetch('/api/v1/generate', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
+    const r = await fetch('/api/v1/generate', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ input, category: currentCat, provider: aiConfig.key ? aiConfig.provider : '' }) });
     const data = await r.json();
-
     if (data.code !== 0) throw new Error(data.message);
     renderResult(data.data);
-    setStatus(`✓ 生成完成 — ${data.data.commands.length} 条命令 | 引擎：${data.data.metadata?.ai_provider || 'offline'}`);
+    setStatus('✓ 生成完成 — ' + data.data.commands.length + ' 条命令 · 引擎：' + (data.data.metadata?.ai_provider || 'offline'));
   } catch(e) {
-    scroll.innerHTML = `<div class="empty-state">
-      <div class="icon">❌</div>
-      <p>生成失败：${e.message}</p>
-      <p style="font-size:11px">提示：离线模式仅支持内置规则，请换一种描述方式</p>
-    </div>`;
+    scroll.innerHTML = '<div class="empty-state"><div class="icon">😕</div><div class="big">生成失败</div><div class="small">' + escHtml(e.message) + '</div></div>';
     setStatus('生成失败 — ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '⚡ 生成命令';
-  }
+  } finally { btn.disabled = false; btn.textContent = '⚡ 生成命令'; }
 }
-
+const LANG = { curl:'CURL', kibana:'KIBANA', sql:'SQL', cli:'SHELL', config:'CONFIG', script:'BASH' };
 function renderResult(data) {
-  const scroll = document.getElementById('resultScroll');
-  scroll.innerHTML = '';
-
-  const cmds = data.commands || [];
-  const warns = data.warnings || [];
-
-  // 结果计数
+  const scroll = document.getElementById('resultScroll'); scroll.innerHTML = '';
+  const cmds = data.commands || [], warns = data.warnings || [];
   const cnt = document.getElementById('resultCount');
-  cnt.textContent = cmds.length;
-  cnt.style.display = cmds.length ? 'inline' : 'none';
-  document.getElementById('copyAllBtn').style.display = cmds.length ? 'block' : 'none';
-
+  cnt.textContent = cmds.length; cnt.style.display = cmds.length ? 'inline' : 'none';
+  document.getElementById('copyAllBtn').style.display = cmds.length ? 'flex' : 'none';
   if (!cmds.length) {
-    scroll.innerHTML = `<div class="empty-state"><div class="icon">🤷</div><p>未找到匹配命令，请换一种描述方式</p></div>`;
+    scroll.innerHTML = '<div class="empty-state"><div class="icon">🤷</div><div class="big">未找到匹配命令</div><div class="small">请换一种描述方式，或配置 AI Key</div></div>';
     return;
   }
-
-  // 警告卡片
   warns.forEach(w => {
-    const cls = w.level === 'high' ? 'warn-card high' : 'warn-card';
-    const icon = w.level === 'high' ? '🚨' : '⚠️';
-    const div = document.createElement('div');
-    div.className = cls;
-    div.innerHTML = `<span class="warn-icon">${icon}</span><span class="warn-text">${escHtml(w.message)}</span>`;
-    scroll.appendChild(div);
+    const high = w.level === 'high';
+    const d = document.createElement('div');
+    d.className = 'warn-card' + (high ? ' high' : '');
+    d.innerHTML = '<span class="warn-icon">' + (high?'🚨':'⚠️') + '</span><span class="warn-text">' + escHtml(w.message) + '</span>';
+    scroll.appendChild(d);
   });
-
-  // 命令卡片
-  cmds.forEach((cmd, i) => {
-    const riskClass = cmd.risk === 'high' ? 'risk-high' : cmd.risk === 'medium' ? 'risk-medium' : 'risk-low';
-    const riskText  = cmd.risk === 'high' ? '⚠ 高风险' : cmd.risk === 'medium' ? '△ 中风险' : '✓ 低风险';
-    const cardId = 'cmd_' + i;
-
-    const div = document.createElement('div');
-    div.className = 'cmd-card';
-    div.innerHTML = `
-      <div class="cmd-card-header">
-        <span class="cmd-number">${i+1}</span>
-        <span class="cmd-title">${escHtml(cmd.title || '')}</span>
-        <span class="risk-badge ${riskClass}">${riskText}</span>
-      </div>
-      <div class="cmd-body">
-        <pre class="cmd-code" id="${cardId}">${escHtml(cmd.command || '')}</pre>
-      </div>
-      <div class="cmd-footer">
-        <span class="cmd-explain">${escHtml(cmd.explanation || (cmd.backup_cmd ? '备份: ' + cmd.backup_cmd : ''))}</span>
-        <button class="copy-btn" onclick="copyCmd('${cardId}', this)">复制</button>
-      </div>
-      ${cmd.rollback_cmd ? `<div style="padding:0 14px 10px;font-size:11px;color:var(--muted)">回滚: <code style="color:#a5f3fc">${escHtml(cmd.rollback_cmd)}</code></div>` : ''}
-    `;
-    scroll.appendChild(div);
+  cmds.forEach((c, i) => {
+    const rc = c.risk === 'high' ? 'risk-high' : c.risk === 'medium' ? 'risk-medium' : 'risk-low';
+    const rt = c.risk === 'high' ? '⚠ 高风险' : c.risk === 'medium' ? '△ 中风险' : '✓ 低风险';
+    const cid = 'code_' + i;
+    const lang = LANG[c.format] || 'SHELL';
+    let extra = '';
+    if (c.backup_cmd)   extra += '<div class="cmd-extra"><span class="label">💾 备份：</span><code>' + escHtml(c.backup_cmd) + '</code></div>';
+    if (c.rollback_cmd) extra += '<div class="cmd-extra"><span class="label">↩️ 回滚：</span><code>' + escHtml(c.rollback_cmd) + '</code></div>';
+    const card = document.createElement('div');
+    card.className = 'cmd-card';
+    card.innerHTML =
+      '<div class="cmd-head"><span class="cmd-num">' + (i+1) + '</span><span class="cmd-title">' + escHtml(c.title||'') + '</span><span class="risk-badge ' + rc + '">' + rt + '</span></div>' +
+      '<div class="cmd-code-wrap"><span class="lang-tag">' + lang + '</span><pre class="cmd-code" id="' + cid + '">' + escHtml(c.command||'') + '</pre></div>' +
+      '<div class="cmd-foot"><span class="cmd-explain">' + escHtml(c.explanation||'') + '</span><button class="copy-btn" onclick="copyCmd(\'' + cid + '\',this)">📋 复制</button></div>' +
+      extra;
+    scroll.appendChild(card);
   });
-
-  // 整体说明
   if (data.explanation) {
-    const div = document.createElement('div');
-    div.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.7';
-    div.innerHTML = '<strong style="color:var(--text)">说明：</strong>' + escHtml(data.explanation);
-    scroll.appendChild(div);
+    const d = document.createElement('div');
+    d.className = 'explain-card';
+    d.innerHTML = '<strong>📖 整体说明</strong>' + escHtml(data.explanation);
+    scroll.appendChild(d);
   }
 }
-
 function copyCmd(id, btn) {
-  const text = document.getElementById(id)?.textContent || '';
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '✓ 已复制';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 1500);
+  const t = document.getElementById(id)?.textContent || '';
+  navigator.clipboard.writeText(t).then(() => {
+    btn.textContent = '✓ 已复制'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 复制'; btn.classList.remove('copied'); }, 1500);
   });
 }
-
 function copyAll() {
-  const all = [...document.querySelectorAll('.cmd-code')].map(e => e.textContent).join('\n\n# ─────────────\n\n');
+  const all = [...document.querySelectorAll('.cmd-code')].map(e => e.textContent).join('\n\n');
   navigator.clipboard.writeText(all).then(() => showToast('全部命令已复制 ✓'));
 }
-
-function setStatus(msg) { document.getElementById('statusText').textContent = msg; }
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function setStatus(m){ document.getElementById('statusText').textContent = m; }
+function showToast(m){ const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>
 </body>
 </html>
